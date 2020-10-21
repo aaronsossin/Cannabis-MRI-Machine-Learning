@@ -1,18 +1,16 @@
 from torch.utils.tensorboard import SummaryWriter
 import pandas as pd
-from pathlib import Path
-import monai
 from monai.metrics import compute_roc_auc
 from monai.transforms import AddChanneld, Compose, LoadNiftid, RandRotate90d, Resized, ScaleIntensityd, ToTensord
-
+from sklearn.model_selection import train_test_split
 from glob import glob
-
+import random
+import nibabel
+from matplotlib import pyplot as plt
 import os
-from os import walk
 import numpy as np
 import torch
 from torch.utils.data import DataLoader
-
 import monai
 from monai.data import CSVSaver
 from monai.transforms import AddChanneld, Compose, LoadNiftid, Resized, ScaleIntensityd, ToTensord
@@ -29,14 +27,6 @@ class nifty_file:
 
     def set_participant_info(self, row):
         self.participant_info = row
-
-class model_input:
-    def __init__(self, type):
-        self.type = type
-
-    def extract(self):
-        if self.type == 0:
-            print("hi")
 
 
 class train_monai:
@@ -59,19 +49,19 @@ class train_monai:
         self.participant_data = pd.read_csv("participants.tsv", sep='\t')
         self.organize_directory()
 
-    def participant_info(self, sub):
-        info = self.participant_data[self.participant_data['participant_id'] == str(sub)]
-        return info
-
-    def model_input(self, col):
+    # Returns the X and Y of model
+    def model_input(self):
         images = []
         labels = []
-        for x in self.file_structure:
+        nfs = list(self.file_structure.keys())
+        random.shuffle(nfs)
+        for x in nfs:
             nf = self.file_structure[x]
             images.append(nf.pathFU)
+            labels.append(1 if list(self.participant_data[self.participant_data['participant_id'] == int(nf.sub)]['group'])[0] == "CB" else 0)
             images.append(nf.pathBL)
-            labels.append(1)
-            labels.append(0)
+            labels.append(1 if list(self.participant_data[self.participant_data['participant_id'] == int(nf.sub)]['group'])[0] == "CB" else 0)
+
         images = np.array(images)
         return images, labels
 
@@ -81,12 +71,12 @@ class train_monai:
         brain_files = [x[0] for x in folders if ".nii.gz" in str(x)]
         for y in brain_files:
             split = y.split('_')
-            sub = split[0]
+            sub = split[0].split('-')[1]
             if sub in self.file_structure:
                 nf = self.file_structure[sub]
             else:
                 nf = nifty_file()
-                nf.set_participant_info(self.participant_info(sub.split('-')[1]))
+                nf.set_participant_info(self.participant_data[self.participant_data['participant_id'] == str(sub)])
                 nf.sub = sub
                 self.file_structure[sub] = nf
 
@@ -94,19 +84,22 @@ class train_monai:
 
             if type == "ses-BL":
                 nf.filenameBL = y
-                nf.pathBL = str(sub + "/" + type + "/anat/" + y)
+                nf.pathBL = str("sub-" + sub + "/" + type + "/anat/" + y)
             elif type == "ses-FU":
                 nf.filenameFU = y
-                nf.pathFU = str(sub + "/" + type + "/anat/" + y)
+                nf.pathFU = str("sub-" + sub + "/" + type + "/anat/" + y)
         return self.file_structure
 
     def setup(self):
         # images = ["sub-320_ses_BL_T1w.nii.gz", "sub-319_ses_BL_T1w.nii.gz", "sub-320_ses_FU_T1w.nii.gz", "sub-319_ses_FU_T1w.nii.gz"]
         # labels = [1, 1, 0, 0]
-        images, labels = self.model_input("group")
+        images, labels = self.model_input()
+        X_train, X_test, y_train, y_test = train_test_split(images, labels, test_size = 0.2)
+        print("IMAGES: ", images)
+        print("LABELS: ", labels)
 
-        self.train_files = [{"img": img, "label": label} for img, label in zip(images, labels)]
-        self.val_files = [{"img": img, "label": label} for img, label in zip(images, labels)]
+        self.train_files = [{"img": img, "label": label} for img, label in zip(X_train, y_train)]
+        self.val_files = [{"img": img, "label": label} for img, label in zip(X_test, y_test)]
 
         # Define transforms for image
         self.train_transforms = Compose(
@@ -114,7 +107,6 @@ class train_monai:
                 LoadNiftid(keys=["img"]),
                 AddChanneld(keys=["img"]),
                 ScaleIntensityd(keys=["img"]),
-                # Resized(keys=["img"], spatial_size=(96, 96, 96)),
                 Resized(keys=["img"], spatial_size=(96, 96, 96)),
                 RandRotate90d(keys=["img"], prob=0.8, spatial_axes=[0, 2]),
                 ToTensord(keys=["img"]),
@@ -125,7 +117,6 @@ class train_monai:
                 LoadNiftid(keys=["img"]),
                 AddChanneld(keys=["img"]),
                 ScaleIntensityd(keys=["img"]),
-                # Resized(keys=["img"], spatial_size=(96, 96, 96)),
                 Resized(keys=["img"], spatial_size=(96, 96, 96)),
                 ToTensord(keys=["img"]),
             ]
@@ -147,6 +138,7 @@ class train_monai:
 
         # Create DenseNet121, CrossEntropyLoss and Adam optimizer
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        print("DEVICE: ", "cuda" if torch.cuda.is_available() else "cpu")
         self.model = monai.networks.nets.densenet.densenet121(spatial_dims=3, in_channels=1, out_channels=2).to(
             self.device)
         self.loss_function = torch.nn.CrossEntropyLoss()
@@ -208,6 +200,7 @@ class train_monai:
         writer.close()
 
     def eval(self):
+        print("Evaluating...")
         self.model.load_state_dict(torch.load("best_metric_model_classification3d_dict.pth"))
         self.model.eval()
         with torch.no_grad():
@@ -224,6 +217,27 @@ class train_monai:
             metric = num_correct / metric_count
             print("evaluation metric:", metric)
             saver.finalize()
+            return metric
+
+    def visualize(self):
+
+        # Load image
+        bg_img = nibabel.load(('sub-320/ses-BL/anat/sub-320_ses-BL_T1w.nii.gz'))
+        bg = bg_img.get_data()
+        # Keep values over 4000 as activation map
+        act = bg.copy()
+        act[act < 6000] = 0.
+
+        # Display the background
+        plt.imshow(bg[..., 10].T, origin='lower', interpolation='nearest', cmap='gray')
+        # Mask background values of activation map
+        masked_act = np.ma.masked_equal(act, 0.)
+        plt.imshow(masked_act[..., 10].T, origin='lower', interpolation='nearest', cmap='hot')
+        # Cosmetics: disable axis
+        plt.axis('off')
+        plt.show()
+        # Save the activation map
+        #nibabel.save(nibabel.Nifti1Image(act, bg_img.get_affine()), 'activation.nii.gz')
 #
 # def model_input(self, task, sub="func/"):
 #        images = []
