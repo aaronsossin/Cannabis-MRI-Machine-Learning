@@ -21,7 +21,7 @@ import pandas as pd
 from train_monai import train_monai
 from plot_participant_data import plot_participant_data
 
-run_model = False
+run_model = True
 plot_participants = False
 test_epochs = False
 epochs = [2,3,4]
@@ -29,16 +29,14 @@ epochs = [2,3,4]
 # Try Resnet121/101
 
 
-
-
 to_plot = ['cudit total baseline', 'cudit total follow-up',
     'audit total baseline',	'audit total follow-up', 'age at baseline ',
     'age at onset first CB use',	'age at onset frequent CB use']
 
-tm = train_monai(epochs=100)
+tm = train_monai(epochs=1)
 pd = plot_participant_data(pd.read_csv("participants.tsv", sep='\t'), to_plot)
 
-tm.visualize()
+#tm.visualize()
 
 if plot_participants:
     pd.plot_cats()
@@ -62,6 +60,8 @@ if test_epochs:
 # 1. Controls vs. Heavy Users
     # 4 Epochs, shuffled, standard featuers, guesses 1 everytime.
     # ...
+    # epoch 92 average loss: 0.3795
+#current epoch: 92 current accuracy: 0.5882 current AUC: 0.5286 best accuracy: 0.6471 at epoch 2
 
 # 2. Regression
 

@@ -14,7 +14,7 @@ from torch.utils.data import DataLoader
 import monai
 from monai.data import CSVSaver
 from monai.transforms import AddChanneld, Compose, LoadNiftid, Resized, ScaleIntensityd, ToTensord
-
+from sklearn.metrics import confusion_matrix
 
 class nifty_file:
     def __init__(self):
@@ -54,7 +54,7 @@ class train_monai:
         images = []
         labels = []
         nfs = list(self.file_structure.keys())
-        random.shuffle(nfs)
+        random.Random(4).shuffle(nfs) #Same result every time
         for x in nfs:
             nf = self.file_structure[x]
             images.append(nf.pathFU)
@@ -91,10 +91,8 @@ class train_monai:
         return self.file_structure
 
     def setup(self):
-        # images = ["sub-320_ses_BL_T1w.nii.gz", "sub-319_ses_BL_T1w.nii.gz", "sub-320_ses_FU_T1w.nii.gz", "sub-319_ses_FU_T1w.nii.gz"]
-        # labels = [1, 1, 0, 0]
         images, labels = self.model_input()
-        X_train, X_test, y_train, y_test = train_test_split(images, labels, test_size = 0.2)
+        X_train, X_test, y_train, y_test = train_test_split(images, labels, test_size = 0.2, shuffle=False)
         print("IMAGES: ", images)
         print("LABELS: ", labels)
 
@@ -147,7 +145,7 @@ class train_monai:
     def train(self):
 
         # start a typical PyTorch training
-        val_interval = 2
+        val_interval = 5
         best_metric = -1
         best_metric_epoch = -1
         writer = SummaryWriter()
@@ -207,17 +205,33 @@ class train_monai:
             num_correct = 0.0
             metric_count = 0
             saver = CSVSaver(output_dir="./output")
+            real = []
+            predicted = []
             for val_data in self.val_loader:
                 val_images, val_labels = val_data["img"].to(self.device), val_data["label"].to(self.device)
                 val_outputs = self.model(val_images).argmax(dim=1)
+                real.append(val_labels.numpy())
+                predicted.append(val_outputs.numpy())
                 value = torch.eq(val_outputs, val_labels)
                 metric_count += len(value)
                 num_correct += value.sum().item()
                 saver.save_batch(val_outputs, val_data["img_meta_dict"])
+            flat_real = self.flatten_list(real)
+            flat_predicted = self.flatten_list(predicted)
+            self.binary_classification(flat_real, flat_predicted)
             metric = num_correct / metric_count
             print("evaluation metric:", metric)
             saver.finalize()
+
+
             return metric
+
+    def flatten_list(self, x):
+        y = []
+        for i in x:
+            for j in i:
+                y.append(j)
+        return y
 
     def visualize(self):
 
@@ -238,6 +252,16 @@ class train_monai:
         plt.show()
         # Save the activation map
         #nibabel.save(nibabel.Nifti1Image(act, bg_img.get_affine()), 'activation.nii.gz')
+
+    def binary_classification(self, y_true, y_pred):
+        print("Classification Results: ")
+        cm = confusion_matrix(y_true, y_pred)
+        tn, fp, fn, tp = cm.ravel()
+        print("TN", tn, "FP", fp, "FN", fn, "TP", tp)
+
+        # y_pred_class = y_pred_pos > threshold
+        # tn, fp, fn, tp = confusion_matrix(y_true, y_pred_class).ravel()
+        # false_positive_rate = fp / (fp + tn)
 #
 # def model_input(self, task, sub="func/"):
 #        images = []
