@@ -33,7 +33,7 @@ to_plot = ['cudit total baseline', 'cudit total follow-up',
     'audit total baseline',	'audit total follow-up', 'age at baseline ',
     'age at onset first CB use',	'age at onset frequent CB use']
 
-tm = train_monai(epochs=1)
+tm = train_monai(epochs=50)
 pd = plot_participant_data(pd.read_csv("participants.tsv", sep='\t'), to_plot)
 
 #tm.visualize()
