@@ -58,10 +58,30 @@ if test_epochs:
 
 #Standard = 4 epochs, shuffled, densenet121 from monai, cross entropy loss, Adam1e-5,
 # 1. Controls vs. Heavy Users
-    # 4 Epochs, shuffled, standard featuers, guesses 1 everytime.
-    # ...
-    # epoch 92 average loss: 0.3795
-#current epoch: 92 current accuracy: 0.5882 current AUC: 0.5286 best accuracy: 0.6471 at epoch 2
+    # 10 EPOCHS:
+#         YPRED:  [0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0]
+#         Classification Results:
+#         TN 5 FP 1 FN 10 TP 1
+#         evaluation metric: 0.35294117647058826
+    # 25 EPOCHS:
+#         YPRED:  [1, 0, 1, 0, 1, 0, 0, 0, 1, 1, 0, 1, 0, 1, 0, 1, 1]
+#         Classification Results:
+#         TN 3 FP 3 FN 5 TP 6
+#         evaluation metric: 0.5294117647058824
+    # 50 EPOCHS:
+#         Evaluating...
+#         YPRED:  [0, 0, 1, 0, 0, 0, 0, 0, 1, 1, 0, 1, 0, 1, 0, 1, 1]
+#         Classification Results:
+#         TN 4 FP 2 FN 6 TP 5
+#         evaluation metric: 0.5294117647058824
+    # 90 EPOCHS:
+#         Evaluating...
+#         YPRED:  [1, 0, 0, 0, 0, 1, 0, 0, 1, 1, 0, 1, 0, 1, 0, 1, 1]
+#         Classification Results:
+#         TN 4 FP 2 FN 5 TP 6
+#         evaluation metric: 0.5882352941176471
+
+
 
 # 2. Regression
 

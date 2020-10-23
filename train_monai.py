@@ -137,8 +137,10 @@ class train_monai:
         # Create DenseNet121, CrossEntropyLoss and Adam optimizer
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         print("DEVICE: ", "cuda" if torch.cuda.is_available() else "cpu")
-        self.model = monai.networks.nets.densenet.densenet121(spatial_dims=3, in_channels=1, out_channels=2).to(
-            self.device)
+        # MODELS:
+        #self.model = monai.networks.nets.densenet.densenet121(spatial_dims=3, in_channels=1, out_channels=2).to(
+            #self.device)
+        self.model = monai.networks.nets.densenet.densenet264(spatial_dims=3, in_channels=1, out_channels=2).to(self.device)
         self.loss_function = torch.nn.CrossEntropyLoss()
         self.optimizer = torch.optim.Adam(self.model.parameters(), 1e-5)
 
@@ -165,7 +167,8 @@ class train_monai:
                 self.optimizer.step()
                 epoch_loss += loss.item()
                 epoch_len = len(self.train_ds) // self.train_loader.batch_size
-                print(f"{step}/{epoch_len}, train_loss: {loss.item():.4f}")
+                if step % 3 == 0:
+                    print(f"{step}/{epoch_len}, train_loss: {loss.item():.4f}")
                 writer.add_scalar("train_loss", loss.item(), epoch_len * epoch + step)
             epoch_loss /= step
             print(f"epoch {epoch + 1} average loss: {epoch_loss:.4f}")
@@ -210,8 +213,8 @@ class train_monai:
             for val_data in self.val_loader:
                 val_images, val_labels = val_data["img"].to(self.device), val_data["label"].to(self.device)
                 val_outputs = self.model(val_images).argmax(dim=1)
-                real.append(val_labels.numpy())
-                predicted.append(val_outputs.numpy())
+                real.append(val_labels.cpu().numpy())
+                predicted.append(val_outputs.cpu().numpy())
                 value = torch.eq(val_outputs, val_labels)
                 metric_count += len(value)
                 num_correct += value.sum().item()
