@@ -3,7 +3,7 @@ import monai
 import glob
 import shutil
 import tempfile
-
+from matplotlib import pyplot as plt
 from torch.utils.tensorboard import SummaryWriter
 import nibabel as nib
 import torch
@@ -17,40 +17,63 @@ from monai.data import CSVSaver
 import os
 from glob import glob
 import pandas as pd
+from basic_CNN import basic_CNN
 
 from train_monai import train_monai
 from plot_participant_data import plot_participant_data
 
+from nilearn import datasets, image
+
+
+# fig = plt.figure()
+# plt.plot([10, 25, 50, 90], [0.353, 0.530, 0.530, 0.588], label="DenseNet121")
+# plt.plot([10, 25, 50, 90], [0.530, 0.470, 0.530, 0.530], label="DenseNet264")
+# plt.plot([10, 25, 50, 90], [0.530, 0.588, 0.588, 0.611], label="DenseNet169")
+# plt.plot([0,90], [0.5, 0.5], '--')
+# plt.title("Baseline Performances of MONAI-defined DenseNet Architectures")
+# plt.xlabel("Epoch Size")
+# plt.ylabel("Accuracy (%)")
+# plt.legend()
+# plt.show()
+
 run_model = True
 plot_participants = False
 test_epochs = False
-epochs = [2,3,4]
 
+#IDEAS
 # Try Resnet121/101
+# N1Loss looks good
+# Decoding with ANOVA + SVM: face vs house in the Haxby dataset, do this! SVM for stuf
+# ALex net
+print("BITCH")
+task = "control"
+model_type = "nilearn_SVM"
+epochs = 2
+subset = "all"
+penalty = "graph-net" #or t1-v1 or something
 
+if model_type == "basic_CNN":
+    bc = basic_CNN()
 
 to_plot = ['cudit total baseline', 'cudit total follow-up',
     'audit total baseline',	'audit total follow-up', 'age at baseline ',
     'age at onset first CB use',	'age at onset frequent CB use']
 
-tm = train_monai(epochs=50)
+tm = train_monai(epochs=epochs, task=task, model_type = model_type)
 pd = plot_participant_data(pd.read_csv("participants.tsv", sep='\t'), to_plot)
-
 #tm.visualize()
 
 if plot_participants:
     pd.plot_cats()
 
+
 if run_model:
-    tm.setup()
-    tm.train()
-    score = tm.eval()
+    score = tm.evaluate(subset=subset, fraction=0.8, kernel='linear', penalty=penalty)
 
 if test_epochs:
     for x in epochs:
-        tm.setup()
-        tm.train()
-        score = tm.eval
+        tm = train_monai(epochs = x, task = task, model_type = model_type)
+        score = tm.evaluate(subset='FU')
         print(x, ": ", score)
 
 
@@ -58,6 +81,7 @@ if test_epochs:
 
 #Standard = 4 epochs, shuffled, densenet121 from monai, cross entropy loss, Adam1e-5,
 # 1. Controls vs. Heavy Users
+    # DENSENET 121
     # 10 EPOCHS:
 #         YPRED:  [0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0]
 #         Classification Results:
@@ -80,6 +104,49 @@ if test_epochs:
 #         Classification Results:
 #         TN 4 FP 2 FN 5 TP 6
 #         evaluation metric: 0.5882352941176471
+
+    # DENSENET 264
+    # 10 EPOCHS
+    #     Evaluating...
+        # Classification Results:
+        # TN 6 FP 0 FN 8 TP 3
+        # evaluation metric: 0.5294117647058824
+
+    # 25 EPOCHS
+        #     Evaluating...
+        # Classification Results:
+        # [0, 0, 1, 0, 1, 0, 0, 1, 1, 0, 0, 1, 0, 1, 0, 1, 1]
+        # TN 3 FP 3 FN 6 TP 5
+        # evaluation metric: 0.47058823529411764
+
+    # 50 EOPCHS
+
+            #         Classification Results:
+            # [0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1]
+            # TN 6 FP 0 FN 8 TP 3
+            # evaluation metric: 0.5294117647058824
+   # 169
+    # 10
+        #     Classification Results:
+        # [0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1]
+        # TN 6 FP 0 FN 8 TP 3
+        # evaluation metric: 0.5294117647058824
+    # 25
+        #         Evaluating...
+        # Classification Results:
+        # [0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 1]
+        # TN 6 FP 0 FN 7 TP 4
+        # evaluation metric: 0.5882352941176471
+     # 50
+        #     Evaluating...
+        # Classification Results:
+        # [0, 0, 1, 1, 0, 1, 0, 0, 1, 1, 1, 1, 0, 1, 0, 1, 1]
+        # TN 3 FP 3 FN 4 TP 7
+        # evaluation metric: 0.5882352941176471
+    # SEGRESNET
+
+    # SEGRESNETVAE AUTOENCODER USES UNPSERVISED LARNING
+
 
 
 
