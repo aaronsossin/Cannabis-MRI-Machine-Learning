@@ -77,7 +77,7 @@ subset = "all"
 # FRACTION
 ## Determine what fraction [0,1] of participant data to model (for time constraints, may want to do less)
 ## '1' is all, '0' is none, '0.5' is half
-fraction = 0.2
+fraction = 1
 
 # Hyper-parameters
 epochs = 2 # Only relevent for the MONAI model
