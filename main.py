@@ -41,6 +41,7 @@ test_epochs = False
 #IDEAS
 # Try Resnet121/101
 # N1Loss looks good
+# TRANSFER LEARNING WITH MONAI saved dict!!!!!!!!!!!!!!!!!!!!! Or, maybe a new unsupervised?
 
 # Exclamation
 print("BITCH")
@@ -49,20 +50,21 @@ print("BITCH")
 ## 1. 'classification'
 ## 2. 'regression'
 ## 3. 'segmentation'
-task = "regression"
+task = "classification"
 
 # MODELS:
 ## 1. 'monai'
 ## 2. 'nilearn'
 ## MORE TO COME
-model_type = "nilearn"
+model_type = "monai"
 
 # MONAI DENSENET VERSION
 ## 1. 121
 ## 2. 201
 ## 3. 169
 ## 4. 264
-densenet_version = 121
+## 5. 1 (AlexNet)
+pytorch_version = 1
 
 """
 Note: The 'nilearn' regression also performs segmentation, but different process than the explicit segmenation
@@ -80,7 +82,7 @@ subset = "all"
 fraction = 1
 
 # Hyper-parameters
-epochs = 2 # Only relevent for the MONAI model
+epochs = 6 # Only relevent for the MONAI model
 penalty = "graph-net" #Only  for ni-learn, either "graph-net" or "tv-l1"
 
 # Columns to plot participant data
@@ -89,7 +91,7 @@ to_plot = ['cudit total baseline', 'cudit total follow-up',
     'age at onset first CB use',	'age at onset frequent CB use']
 
 # Initializing the Modelling Class with Abote parameters
-tm = train_monai(epochs=epochs, task=task, model_type = model_type, densenet_version = densenet_version)
+tm = train_monai(epochs=epochs, task=task, model_type = model_type, pytorch_version = pytorch_version)
 
 # Returns the evaluation metric when running the above settings
 if run_model:

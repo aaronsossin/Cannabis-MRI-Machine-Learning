@@ -30,10 +30,11 @@ from sklearn.feature_selection import SelectPercentile, f_classif
 from sklearn.pipeline import Pipeline
 from sklearn.model_selection import LeaveOneGroupOut, cross_val_score
 from File_Structure import File_Structure
+from AlexNet import AlexNet3D
 from nifty_file import nifty_file
 
 class train_monai:
-    def __init__(self, epochs=2, task='control', model_type= "nilearn", densenet_version = 121):
+    def __init__(self, epochs=2, task='control', model_type= "nilearn", pytorch_version = 0):
         self.train_files = None
         self.val_files = None
         self.train_transforms = None
@@ -52,10 +53,11 @@ class train_monai:
         self.task = task
         self.model_type = model_type
         self.epochs = epochs
-        self.densenet_version = densenet_version
+        self.pytorch_version = pytorch_version
         self.participant_data = pd.read_csv("participants.tsv", sep='\t')
 
         # Runs on Initialization to Create File Structure
+        self.saved_model_dict = "best_metric_" + self.task + ":" + self.model_type + "," + str(self.pytorch_version) + ".pth"
         self.File_Structure = File_Structure(self.task)
         self.File_Structure.organize_directory()
 
@@ -108,13 +110,18 @@ class train_monai:
         self.train_files = [{"img": img, "label": label} for img, label in zip(X_train, y_train)]
         self.val_files = [{"img": img, "label": label} for img, label in zip(X_test, y_test)]
 
+        # Shape of Image to Resample
+        if self.pytorch_version  == 1: #AlexNet
+            s_size = 227
+        else:
+            s_size = 96
         # Define transforms for image
         self.train_transforms = Compose(
             [
                 LoadNiftid(keys=["img"]),
                 AddChanneld(keys=["img"]),
                 ScaleIntensityd(keys=["img"]),
-                Resized(keys=["img"], spatial_size=(96, 96, 96)),
+                Resized(keys=["img"], spatial_size=(s_size, s_size, s_size)),
                 RandRotate90d(keys=["img"], prob=0.8, spatial_axes=[0, 2]),
                 ToTensord(keys=["img"]),
             ]
@@ -124,10 +131,11 @@ class train_monai:
                 LoadNiftid(keys=["img"]),
                 AddChanneld(keys=["img"]),
                 ScaleIntensityd(keys=["img"]),
-                Resized(keys=["img"], spatial_size=(96, 96, 96)),
+                Resized(keys=["img"], spatial_size=(s_size, s_size, s_size)),
                 ToTensord(keys=["img"]),
             ]
         )
+
         # Define dataset, data loader
         check_ds = monai.data.Dataset(data=self.train_files, transform=self.train_transforms)
         check_loader = DataLoader(check_ds, batch_size=2, num_workers=4, pin_memory=torch.cuda.is_available())
@@ -148,14 +156,16 @@ class train_monai:
         print("DEVICE: ", "cuda" if torch.cuda.is_available() else "cpu")
 
         # MODELS:
-        if self.densenet_version == 121:
+        if self.pytorch_version == 1:
+            self.model = AlexNet3D()
+        if self.pytorch_version == 121:
             self.model = monai.networks.nets.densenet.densenet121(spatial_dims=3, in_channels=1, out_channels=2).to(
                 self.device)
-        elif self.densenet_version == 169:
+        elif self.pytorch_version == 169:
             self.model = monai.networks.nets.densenet.densenet264(spatial_dims=3, in_channels=1, out_channels=2).to(self.device)
-        elif self.densenet_version == 201:
+        elif self.pytorch_version == 201:
             self.model = monai.networks.nets.densenet.densenet169(spatial_dims=3, in_channels=1, out_channels=2).to(self.device)
-        elif self.densenet_version == 264:
+        elif self.pytorch_version == 264:
             self.model = monai.networks.nets.densenet.densenet201(spatial_dims=3, in_channels=1, out_channels=2).to(self.device)
         #self.model = monai.networks.nets.SegResNetVAE(input_image_size=(96,96,96)).to(self.device)
 
@@ -183,6 +193,10 @@ class train_monai:
                 inputs, labels = batch_data["img"].to(self.device), batch_data["label"].to(self.device)
                 self.optimizer.zero_grad()
                 outputs = self.model(inputs)
+                print(outputs)
+                if self.pytorch_version == 1:
+                    outputs = torch.nn.functional.softmax(outputs, dim=0)
+                print(outputs)
                 loss = self.loss_function(outputs, labels)
                 loss.backward()
                 self.optimizer.step()
@@ -210,8 +224,7 @@ class train_monai:
                     if acc_metric > best_metric:
                         best_metric = acc_metric
                         best_metric_epoch = epoch + 1
-                        torch.save(self.model.state_dict(), "best_metric_model_classification3d_dict.pth")
-                        print("saved new best metric model")
+                        torch.save(self.model.state_dict(), self.saved_model_dict)
                     print(
                         "current epoch: {} current accuracy: {:.4f} current AUC: {:.4f} best accuracy: {:.4f} at epoch {}".format(
                             epoch + 1, acc_metric, auc_metric, best_metric, best_metric_epoch
@@ -225,7 +238,7 @@ class train_monai:
     # Only for classification right now
     def monai_eval(self):
         print("Evaluating...")
-        self.model.load_state_dict(torch.load("best_metric_model_classification3d_dict.pth"))
+        self.model.load_state_dict(torch.load(self.saved_model_dict))
         self.model.eval()
         with torch.no_grad():
             num_correct = 0.0
