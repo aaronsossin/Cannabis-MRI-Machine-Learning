@@ -44,7 +44,7 @@ class File_Structure:
         labels = []
         nfs = list(self.file_structure.keys())
         random.Random(5).shuffle(nfs)  # Shuffle USED TO BE 4, but didn't seem legit
-        if self.task == "control":
+        if self.task == "classification":
             for x in nfs:
                 nf = self.file_structure[x]
                 if subset == "all" or subset == "FU":
@@ -57,7 +57,7 @@ class File_Structure:
                     labels.append(1 if list(
                         self.participant_data[self.participant_data['participant_id'] == int(nf.sub)]['group'])[
                                            0] == "CB" else 0)
-        elif self.task == "cudit":
+        elif self.task == "regression":
             print("CUDIT TASK")
             for x in nfs:
                 nf = self.file_structure[x]

@@ -58,28 +58,54 @@ class train_monai:
         self.File_Structure = File_Structure(self.task)
         self.File_Structure.organize_directory()
 
+    # 'Brain' of code
     def evaluate(self, subset, fraction, kernel='linear', penalty='graph-net'):
+        score = 0
+
+        # shape = the shape of MRI. Since BL and FU have different shapes, must standardize when using nilearn
         if subset == "all":
             shape = (256, 256, 256)
         elif subset == "FU":
             shape = (256, 256, 170)
         else:
             shape = (256, 182, 256)
-        X_train, X_test, y_train, y_test = self.setup(subset, fraction)
-        if self.model_type == "nilearn_regression":
-            score = self.nilearn_regression(X_train, X_test, y_train, y_test, shape, penalty)
-        elif self.model_type == "monai":
-            self.monai_train()
-            score = self.monai_eval()
-        elif self.model_type == "nilearn_SVM":
-            X = np.append(X_train,X_test)
-            y = np.append(y_train,y_test)
-            score = self.nilearn_SVM(X, y, shape, kernel)
-        print("SCore: ", score)
 
+        # The train/eval data specialized for either regression or classification
+        X_train, X_test, y_train, y_test = self.setup(subset, fraction)
+
+        # Run model
+        if self.model_type == "nilearn":
+
+            if self.task == "regression":
+                score = self.nilearn_regression(X_train, X_test, y_train, y_test, shape, penalty)
+
+            elif self.task == "segmentation":
+                X = np.append(X_train, X_test)
+                y = np.append(y_train, y_test)
+                score = self.nilearn_SVM(X, y, shape, kernel)
+
+            else:
+                print("No functionality for this yet")
+
+        elif self.model_type == "monai":
+
+            if self.task == "classification":
+                self.monai_train()
+                score = self.monai_eval()
+
+            else:
+                print("not yet made, need to adapt")
+
+        print("Score: ", score)
+
+    # Setup the Monai File Structure and Train/Eval images/labels
     def setup(self, subset="all", fraction=1):
+
+        # Extract images and labels from the participant files in directory
+
         images, labels = self.File_Structure.model_input(subset, fraction)
         X_train, X_test, y_train, y_test = train_test_split(images, labels, test_size = 0.4, shuffle=False)
+
 
         self.train_files = [{"img": img, "label": label} for img, label in zip(X_train, y_train)]
         self.val_files = [{"img": img, "label": label} for img, label in zip(X_test, y_test)]
@@ -122,17 +148,22 @@ class train_monai:
         # Create DenseNet121, CrossEntropyLoss and Adam optimizer
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         print("DEVICE: ", "cuda" if torch.cuda.is_available() else "cpu")
-        # MODELS:
-        #self.model = CNNModel()
 
-        #self.model = monai.networks.nets.densenet.densenet121(spatial_dims=3, in_channels=1, out_channels=2).to(
-            #self.device)
+        # MODELS:
+        #self.model = CNNModel(), work in progress
+        self.model = monai.networks.nets.densenet.densenet121(spatial_dims=3, in_channels=1, out_channels=2).to(
+            self.device)
         #self.model = monai.networks.nets.densenet.densenet264(spatial_dims=3, in_channels=1, out_channels=2).to(self.device)
+        #self.model = monai.networks.nets.densenet.densenet169(spatial_dims=3, in_channels=1, out_channels=2).to(self.device)
+        # self.model = monai.networks.nets.densenet.densenet201(spatial_dims=3, in_channels=1, out_channels=2).to(self.device)
         #self.model = monai.networks.nets.SegResNetVAE(input_image_size=(96,96,96)).to(self.device)
+
+        ############## GOOD OPTIONS FOR HYPER-PARAMETER TESTING #####################
         self.loss_function = torch.nn.CrossEntropyLoss()
         self.optimizer = torch.optim.Adam(self.model.parameters(), 1e-5)
         return [X_train, X_test, y_train, y_test]
 
+    # Entire Function copy-pasted from ....com, trains the model and saves it to directory
     def monai_train(self):
 
         # start a typical PyTorch training
@@ -189,6 +220,8 @@ class train_monai:
         print(f"train completed, best_metric: {best_metric:.4f} at epoch: {best_metric_epoch}")
         writer.close()
 
+    # Evaluates best model that was saved
+    # Only for classification right now
     def monai_eval(self):
         print("Evaluating...")
         self.model.load_state_dict(torch.load("best_metric_model_classification3d_dict.pth"))
@@ -218,35 +251,30 @@ class train_monai:
 
             return metric
 
-    def flatten_list(self, x):
-        y = []
-        for i in x:
-            for j in i:
-                y.append(j)
-        return y
-
+    # Segmentation
     def nilearn_SVM(self,  X, y, shape, kernel='linear'):
 
+        # Pre-processing
         resampled_X = []
         for x in X:
             resampled_X.append(resample_img(x, target_affine=np.eye(4), target_shape=shape))
         masker = NiftiMasker(smoothing_fwhm=4,
                                 standardize=True, memory="nilearn_cache", memory_level=1)
-        #X = resample_img(X, target_affine=np.eye(4), target_shape=shape)
         X = masker.fit_transform(resampled_X)
-        mean_img = nilearn.image.mean_img(resampled_X)
+
+        # Model
         svc = SVC(kernel=kernel)
-        #pca = PCA(svd_solver='full', n_components=0.95) tru tjos with pca.fit_transform
+        #pca = PCA(svd_solver='full', n_components=0.95) tru tjos with pca.fit_transform # TO TRY LATER
         feature_selection = SelectPercentile(f_classif, percentile=5)
         anova_svc = Pipeline([('anova', feature_selection), ('svc', svc)])
         anova_svc.fit(X, y)
         y_pred = anova_svc.predict(X)
         print(y_pred)
-        #cv = LeaveOneGroupOut()
 
         # Compute the prediction accuracy for the different folds (i.e. session)
         cv_scores = cross_val_score(anova_svc, X, y, cv = 8)
         print(cv_scores)
+
         # Return the corresponding mean prediction accuracy
         classification_accuracy = cv_scores.mean()
         print(classification_accuracy)
@@ -254,13 +282,15 @@ class train_monai:
               (classification_accuracy, 1. / 2.))
 
         coef = svc.coef_
+
         # reverse feature selection
         coef = feature_selection.inverse_transform(coef)
+
         # reverse masking
         weight_img = masker.inverse_transform(coef)
 
         # Use the mean image as a background to avoid relying on anatomical data
-
+        mean_img = nilearn.image.mean_img(resampled_X)
 
         # Create the figure
         plot_stat_map(weight_img, mean_img, title='SVM weights')
@@ -269,46 +299,52 @@ class train_monai:
 
         return classification_accuracy
 
+    # Nilearn_Regression
     def nilearn_regression(self, X_train, X_test, y_train, y_test, shape=(256, 256, 256), loss_function='graph-net'):
-        print(loss_function)
-        # DO GRAPHNET AND TV1
-        # images, labels = self.model_input()
-        # images = images[0:20]
-        # labels = labels[0:20]
-        #X_train, X_test, y_train, y_test = train_test_split(images, labels, test_size=0.4, shuffle=False)
+
+        # Pre-process the Images (may want to do more of this)
+
         new_X_train = []
         for x in X_train:
             a = load_img(x)
             b = smooth_img(a, fwhm=5)
             c = resample_img(b, target_affine=np.eye(4), target_shape=shape)
             new_X_train.append(c)
-        print("X TRAIN RESAMPLED")
         new_X_test = []
         for x in X_test:
             a = load_img(x)
             b = smooth_img(a, fwhm=5)
             c = resample_img(b, target_affine=np.eye(4), target_shape=shape)
             new_X_test.append(c)
-        print("X TEST RESAMPLED")
-        # perm = np.argsort(y_test)[::-1]
-        # y_test = y_test[perm]
-        # new_X_test = new_X_test[perm]
+
+
+        print("Resamplng Complete")
+
         background_img = new_X_train[0]
-        print("Background image computed")
-        #X_train = resample_img(smooth_img(X_train, fwhm=None), template)
-        #X_test = resample_img(smooth_img(X_test, fwhm=None), template)
+        print("Background image computed with which to plot coefs")
+
+        # The model
         decoder = SpaceNetRegressor(memory="nilearn_cache", penalty=loss_function,
                                     screening_percentile=5., memory_level=2)
-        decoder.fit(new_X_train, y_train)  # fit
+
+        # Fit the model
+        decoder.fit(new_X_train, y_train)
+
+        # Coef_img is the points to plot on brain for visualization
         coef_img = decoder.coef_img_
-        y_pred = decoder.predict(new_X_test).ravel()  # predict
+
+        # Predictions on test set
+        y_pred = decoder.predict(new_X_test).ravel()
+
+        # Evaluation Metrics
         mse = np.mean(np.abs(y_test - y_pred))
         r2 = r2_score(y_test, y_pred)
         print('Mean square error (MSE) on the predicted Cudit Score: %.2f' % mse)
         print('R2 Score on the predicted Cudit Score: %.2f' % r2)
 
+        # Plot
         plt.figure()
-        suptitle = "graph-net: MAE: " + str(mse) + " r2: " + str(r2)
+        suptitle = loss_function + " MAE: " + str(mse) + " r2: " + str(r2)
         plt.suptitle(suptitle)
         linewidth = 3
         ax1 = plt.subplot('211')
@@ -334,6 +370,9 @@ class train_monai:
                       #display_mode="z", cut_coords=1, dim=-.5)
         #plot_stat_map(coef_img, background_img, title="graph-net weights", dim=-.5)
         plt.show()
+
+        # Trying to convert to MRI coordinates but doesn't work
+
         # niimg = nilearn.datasets.load_mni152_template()
         # converted = nilearn.image.coord_transform(19, 77, 15, background_img)
         # print(converted)
@@ -366,6 +405,14 @@ class train_monai:
         # plt.show()
         # # Save the activation map
         # #nibabel.save(nibabel.Nifti1Image(act, bg_img.get_affine()), 'activation.nii.gz')
+        # Auxiliary Function
+
+    def flatten_list(self, x):
+        y = []
+        for i in x:
+            for j in i:
+                y.append(j)
+        return y
 
     def binary_classification(self, y_true, y_pred):
         print("Classification Results: ")

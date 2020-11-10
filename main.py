@@ -17,25 +17,23 @@ from monai.data import CSVSaver
 import os
 from glob import glob
 import pandas as pd
-from basic_CNN import basic_CNN
 
 from train_monai import train_monai
 from plot_participant_data import plot_participant_data
 
 from nilearn import datasets, image
 
+##########################################
+"""
+Environment set up: (i think this is it)
+1. pip install nilearn
+2. pip install monai
+3. pip install torch
+"""
+##############################################
 
-# fig = plt.figure()
-# plt.plot([10, 25, 50, 90], [0.353, 0.530, 0.530, 0.588], label="DenseNet121")
-# plt.plot([10, 25, 50, 90], [0.530, 0.470, 0.530, 0.530], label="DenseNet264")
-# plt.plot([10, 25, 50, 90], [0.530, 0.588, 0.588, 0.611], label="DenseNet169")
-# plt.plot([0,90], [0.5, 0.5], '--')
-# plt.title("Baseline Performances of MONAI-defined DenseNet Architectures")
-# plt.xlabel("Epoch Size")
-# plt.ylabel("Accuracy (%)")
-# plt.legend()
-# plt.show()
 
+#Only run_model need ever be run.
 run_model = True
 plot_participants = False
 test_epochs = False
@@ -43,32 +41,56 @@ test_epochs = False
 #IDEAS
 # Try Resnet121/101
 # N1Loss looks good
-# Decoding with ANOVA + SVM: face vs house in the Haxby dataset, do this! SVM for stuf
-# ALex net
+
+# Exclamation
 print("BITCH")
-task = "control"
-model_type = "nilearn_SVM"
-epochs = 2
+
+# TASKS:
+## 1. 'classification'
+## 2. 'regression'
+## 3. 'segmentation'
+task = "regression"
+
+# MODELS:
+## 1. 'monai'
+## 2. 'nilearn'
+## MORE TO COME
+model_type = "nilearn"
+
+"""
+Note: The 'nilearn' regression also performs segmentation, but different process than the explicit segmenation
+"""
+
+# SUBSET:
+## 1. FU (only follow up scores (after the 3 years)
+## 2. BL (baseline, first session)
+## Each participant has both FU and BL MRI, and also the MRIs are of different shape
 subset = "all"
-penalty = "graph-net" #or t1-v1 or something
 
-if model_type == "basic_CNN":
-    bc = basic_CNN()
+# FRACTION
+## Determine what fraction [0,1] of participant data to model (for time constraints, may want to do less)
+## '1' is all, '0' is none, '0.5' is half
+fraction = 1
 
+# Hyper-parameters
+epochs = 2
+penalty = "graph-net" #Only  for ni-learn, either "graph-net" or "tv-l1"
+
+# Columns to plot participant data
 to_plot = ['cudit total baseline', 'cudit total follow-up',
     'audit total baseline',	'audit total follow-up', 'age at baseline ',
     'age at onset first CB use',	'age at onset frequent CB use']
 
+# Initializing the Modelling Class with Abote parameters
 tm = train_monai(epochs=epochs, task=task, model_type = model_type)
-pd = plot_participant_data(pd.read_csv("participants.tsv", sep='\t'), to_plot)
-#tm.visualize()
+
+# Returns the evaluation metric when running the above settings
+if run_model:
+    score = tm.evaluate(subset=subset, fraction=fraction, kernel='linear', penalty=penalty)
 
 if plot_participants:
+    pd = plot_participant_data(pd.read_csv("participants.tsv", sep='\t'), to_plot)
     pd.plot_cats()
-
-
-if run_model:
-    score = tm.evaluate(subset=subset, fraction=0.8, kernel='linear', penalty=penalty)
 
 if test_epochs:
     for x in epochs:
@@ -77,7 +99,7 @@ if test_epochs:
         print(x, ": ", score)
 
 
-# Results
+# Results - Don't delete
 
 #Standard = 4 epochs, shuffled, densenet121 from monai, cross entropy loss, Adam1e-5,
 # 1. Controls vs. Heavy Users
@@ -149,6 +171,16 @@ if test_epochs:
 
 
 
+# fig = plt.figure()
+# plt.plot([10, 25, 50, 90], [0.353, 0.530, 0.530, 0.588], label="DenseNet121")
+# plt.plot([10, 25, 50, 90], [0.530, 0.470, 0.530, 0.530], label="DenseNet264")
+# plt.plot([10, 25, 50, 90], [0.530, 0.588, 0.588, 0.611], label="DenseNet169")
+# plt.plot([0,90], [0.5, 0.5], '--')
+# plt.title("Baseline Performances of MONAI-defined DenseNet Architectures")
+# plt.xlabel("Epoch Size")
+# plt.ylabel("Accuracy (%)")
+# plt.legend()
+# plt.show()
 
 # 2. Regression
 
