@@ -33,7 +33,7 @@ from File_Structure import File_Structure
 from nifty_file import nifty_file
 
 class train_monai:
-    def __init__(self, epochs=2, task='control', model_type= "nilearn_regression"):
+    def __init__(self, epochs=2, task='control', model_type= "nilearn", densenet_version = 121):
         self.train_files = None
         self.val_files = None
         self.train_transforms = None
@@ -52,6 +52,7 @@ class train_monai:
         self.task = task
         self.model_type = model_type
         self.epochs = epochs
+        self.densenet_version = densenet_version
         self.participant_data = pd.read_csv("participants.tsv", sep='\t')
 
         # Runs on Initialization to Create File Structure
@@ -76,16 +77,13 @@ class train_monai:
         # Run model
         if self.model_type == "nilearn":
 
-            if self.task == "regression":
-                score = self.nilearn_regression(X_train, X_test, y_train, y_test, shape, penalty)
+            if self.task == "regression" or self.task == "classification":
+                score = self.nilearn(X_train, X_test, y_train, y_test, shape, penalty)
 
             elif self.task == "segmentation":
                 X = np.append(X_train, X_test)
                 y = np.append(y_train, y_test)
                 score = self.nilearn_SVM(X, y, shape, kernel)
-
-            else:
-                print("No functionality for this yet")
 
         elif self.model_type == "monai":
 
@@ -150,12 +148,15 @@ class train_monai:
         print("DEVICE: ", "cuda" if torch.cuda.is_available() else "cpu")
 
         # MODELS:
-        #self.model = CNNModel(), work in progress
-        self.model = monai.networks.nets.densenet.densenet121(spatial_dims=3, in_channels=1, out_channels=2).to(
-            self.device)
-        #self.model = monai.networks.nets.densenet.densenet264(spatial_dims=3, in_channels=1, out_channels=2).to(self.device)
-        #self.model = monai.networks.nets.densenet.densenet169(spatial_dims=3, in_channels=1, out_channels=2).to(self.device)
-        # self.model = monai.networks.nets.densenet.densenet201(spatial_dims=3, in_channels=1, out_channels=2).to(self.device)
+        if self.densenet_version == 121:
+            self.model = monai.networks.nets.densenet.densenet121(spatial_dims=3, in_channels=1, out_channels=2).to(
+                self.device)
+        elif self.densenet_version == 169:
+            self.model = monai.networks.nets.densenet.densenet264(spatial_dims=3, in_channels=1, out_channels=2).to(self.device)
+        elif self.densenet_version == 201:
+            self.model = monai.networks.nets.densenet.densenet169(spatial_dims=3, in_channels=1, out_channels=2).to(self.device)
+        elif self.densenet_version == 264:
+            self.model = monai.networks.nets.densenet.densenet201(spatial_dims=3, in_channels=1, out_channels=2).to(self.device)
         #self.model = monai.networks.nets.SegResNetVAE(input_image_size=(96,96,96)).to(self.device)
 
         ############## GOOD OPTIONS FOR HYPER-PARAMETER TESTING #####################
@@ -300,7 +301,7 @@ class train_monai:
         return classification_accuracy
 
     # Nilearn_Regression
-    def nilearn_regression(self, X_train, X_test, y_train, y_test, shape=(256, 256, 256), loss_function='graph-net'):
+    def nilearn(self, X_train, X_test, y_train, y_test, shape=(256, 256, 256), loss_function='graph-net'):
 
         # Pre-process the Images (may want to do more of this)
 
@@ -325,7 +326,7 @@ class train_monai:
 
         # The model
         decoder = SpaceNetRegressor(memory="nilearn_cache", penalty=loss_function,
-                                    screening_percentile=5., memory_level=2)
+                                    screening_percentile=5., memory_level=1)
 
         # Fit the model
         decoder.fit(new_X_train, y_train)
@@ -334,17 +335,26 @@ class train_monai:
         coef_img = decoder.coef_img_
 
         # Predictions on test set
-        y_pred = decoder.predict(new_X_test).ravel()
+        if self.task == "classification":
+            y_pred = np.round(decoder.predict(new_X_test).ravel())
 
-        # Evaluation Metrics
-        mse = np.mean(np.abs(y_test - y_pred))
-        r2 = r2_score(y_test, y_pred)
-        print('Mean square error (MSE) on the predicted Cudit Score: %.2f' % mse)
-        print('R2 Score on the predicted Cudit Score: %.2f' % r2)
+            accuracy = np.average([1 if y_pred[i] == y_test[i] else 0 for i in range(len(y_pred))])
+            print("ACCURACY: ", accuracy)
+            suptitle = "Accuracy: " + str(accuracy)
+            score = accuracy
+        else:
+            y_pred = decoder.predict(new_X_test).ravel()
+
+            # Evaluation Metrics
+            mse = np.mean(np.abs(y_test - y_pred))
+            score = mse
+            r2 = r2_score(y_test, y_pred)
+            print('Mean square error (MSE) on the predicted Cudit Score: %.2f' % mse)
+            print('R2 Score on the predicted Cudit Score: %.2f' % r2)
+            suptitle = loss_function + " MAE: " + str(mse) + " r2: " + str(r2)
 
         # Plot
         plt.figure()
-        suptitle = loss_function + " MAE: " + str(mse) + " r2: " + str(r2)
         plt.suptitle(suptitle)
         linewidth = 3
         ax1 = plt.subplot('211')
@@ -377,7 +387,7 @@ class train_monai:
         # converted = nilearn.image.coord_transform(19, 77, 15, background_img)
         # print(converted)
 
-        return mse
+        return score
 
     def visualize(self, c=None):
         if c != None:

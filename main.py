@@ -57,6 +57,13 @@ task = "regression"
 ## MORE TO COME
 model_type = "nilearn"
 
+# MONAI DENSENET VERSION
+## 1. 121
+## 2. 201
+## 3. 169
+## 4. 264
+densenet_version = 121
+
 """
 Note: The 'nilearn' regression also performs segmentation, but different process than the explicit segmenation
 """
@@ -70,10 +77,10 @@ subset = "all"
 # FRACTION
 ## Determine what fraction [0,1] of participant data to model (for time constraints, may want to do less)
 ## '1' is all, '0' is none, '0.5' is half
-fraction = 1
+fraction = 0.2
 
 # Hyper-parameters
-epochs = 2
+epochs = 2 # Only relevent for the MONAI model
 penalty = "graph-net" #Only  for ni-learn, either "graph-net" or "tv-l1"
 
 # Columns to plot participant data
@@ -82,7 +89,7 @@ to_plot = ['cudit total baseline', 'cudit total follow-up',
     'age at onset first CB use',	'age at onset frequent CB use']
 
 # Initializing the Modelling Class with Abote parameters
-tm = train_monai(epochs=epochs, task=task, model_type = model_type)
+tm = train_monai(epochs=epochs, task=task, model_type = model_type, densenet_version = densenet_version)
 
 # Returns the evaluation metric when running the above settings
 if run_model:
