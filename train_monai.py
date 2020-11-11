@@ -24,7 +24,6 @@ from sklearn.model_selection import cross_val_score
 from sklearn.model_selection import train_test_split
 from sklearn.pipeline import Pipeline
 from sklearn.svm import SVC
-from skorch import NeuralNetClassifier
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 
@@ -73,6 +72,7 @@ class train_monai:
         counter = 0
         scores = dict()
         for train_index, test_index in kf.split(X):
+
             scores[counter] = dict()
             X_train, X_test = X[train_index], X[test_index]
             y_train, y_test = y[train_index], y[test_index]
@@ -92,7 +92,6 @@ class train_monai:
                         score = self.monai_eval()
 
                         scores[counter][key] = score
-                        print("SCORE: ", score)
 
             counter += 1
 
@@ -263,7 +262,8 @@ class train_monai:
             epoch_loss /= step
             print(f"epoch {epoch + 1} average loss: {epoch_loss:.4f}")
 
-            if (epoch + 1) % val_interval == 0:
+            #if (epoch + 1) % val_interval == 0:
+            if True:
                 self.model.eval()
                 with torch.no_grad():
                     y_pred = torch.tensor([], dtype=torch.float32, device=self.device)
@@ -272,16 +272,18 @@ class train_monai:
                         val_images, val_labels = val_data["img"].to(self.device), val_data["label"].to(self.device)
                         y_pred = torch.cat([y_pred, self.model(val_images)], dim=0)
                         y = torch.cat([y, val_labels], dim=0)
-
-                    acc_value = torch.eq(y_pred.argmax(dim=1), y)
-                    acc_metric = acc_value.sum().item() / len(acc_value)
+                    y_pred_numpy = list(np.array(y_pred.argmax(dim=1)))
+                    y_numpy = list(np.array(y))
+                    cm = confusion_matrix(y_numpy, y_pred_numpy)
+                    tn, fp, fn, tp = cm.ravel()
+                    acc_metric = (tp / (tp + fn) + tn / (fp + tn))/2.0 #Balanced Accuracy
                     auc_metric = compute_roc_auc(y_pred, y, to_onehot_y=True, softmax=True)
                     if acc_metric > best_metric:
                         best_metric = acc_metric
                         best_metric_epoch = epoch + 1
                         torch.save(self.model.state_dict(), self.saved_model_dict)
                     print(
-                        "current epoch: {} current accuracy: {:.4f} current AUC: {:.4f} best accuracy: {:.4f} at epoch {}".format(
+                        "current epoch: {} current balanced accuracy: {:.4f} current AUC: {:.4f} best balanced accuracy: {:.4f} at epoch {}".format(
                             epoch + 1, acc_metric, auc_metric, best_metric, best_metric_epoch
                         )
                     )
@@ -314,11 +316,25 @@ class train_monai:
             flat_predicted = self.flatten_list(predicted)
             binary_ = self.binary_classification(flat_real, flat_predicted)
             metric = num_correct / metric_count
-            print("evaluation metric:", metric)
             saver.finalize()
 
+            return binary_
 
-            return [metric, binary_]
+    def binary_classification(self, y_true, y_pred):
+        print("Classification Results: ")
+        print(y_true)
+        cm = confusion_matrix(y_true, y_pred)
+        tn, fp, fn, tp = cm.ravel()
+        output = "TN:" + str(tn) + "FP:" + str(fp) + "FN:" + str(fn) + "TP:" + str(tp)
+        stats = dict()
+        stats["sensitivity"] = tp / (tp + fn)
+        stats["specificity"] = tn / (fp + tn)
+        stats["balanced_accuracy"] = (stats["sensitivity"] + stats["specificity"])/2.0
+        stats["accuracy"] = (tp + tn) / (tp + tn + fp + fn)
+
+        print(output)
+        print(stats)
+        return [output, stats]
 
     # Segmentation
     def nilearn_SVM(self,  X, y, shape, kernel='linear'):
@@ -490,19 +506,6 @@ class train_monai:
             for j in i:
                 y.append(j)
         return y
-
-    def binary_classification(self, y_true, y_pred):
-        print("Classification Results: ")
-        print(y_pred)
-        cm = confusion_matrix(y_true, y_pred)
-        tn, fp, fn, tp = cm.ravel()
-        output = "TN:" + str(tn) + "FP:" + str(fp) + "FN:" + str(fn) + "TP:" + str(tp)
-        print(output)
-        return output
-
-        # y_pred_class = y_pred_pos > threshold
-        # tn, fp, fn, tp = confusion_matrix(y_true, y_pred_class).ravel()
-        # false_positive_rate = fp / (fp + tn)
 
     def plot_grid_search(self, cv_results, grid_param_1, grid_param_2, name_param_1, name_param_2):
         print("doesn't work lmao")

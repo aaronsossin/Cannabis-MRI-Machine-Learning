@@ -24,10 +24,13 @@ from nilearn import datasets, image
 
 ##########################################
 """
-Environment set up: (i think this is it)
+Environment set up:
 1. pip install nilearn
 2. pip install monai
 3. pip install torch
+4. pip install resnet
+5. pip install skorch
+6. pip install tensorflow
 """
 ##############################################
 
