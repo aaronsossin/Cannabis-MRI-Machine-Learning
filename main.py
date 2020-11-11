@@ -97,8 +97,9 @@ optimizers = ["SGD"]
 # LOSS FUNCTIONS
 loss_functions = ["CrossEntropyLoss", "NLLLoss"]
 
-#Cross Validation 'K'
-cv = 2 #SHOULD BE 3
+#CROSS VALIDATION 'K'
+## CV = 0, simply doesn't perform cross validation and goes to default hyperparameters
+cv = 3
 
 # Hyper-parameters
 epochs = 1 # Only relevent for the pytorch model

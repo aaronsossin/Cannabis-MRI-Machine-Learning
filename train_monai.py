@@ -103,10 +103,9 @@ class train_monai:
         outF.close()
 
 
-    # 'Brain' of code
     def evaluate(self, subset, fraction, kernel='linear', penalty='graph-net'):
-        score = 0
 
+        score = 0
         # shape = the shape of MRI. Since BL and FU have different shapes, must standardize when using nilearn
         if subset == "all":
             shape = (256, 256, 256)
@@ -122,7 +121,8 @@ class train_monai:
         X = np.append(X_train, X_test)
         y = np.append(y_train, y_test)
 
-        self.cv_grid_search(X,y)
+        if self.cv > 0:
+            self.cv_grid_search(X,y)
 
         # Run model
         if self.model_type == "nilearn":
@@ -496,7 +496,7 @@ class train_monai:
         print(y_pred)
         cm = confusion_matrix(y_true, y_pred)
         tn, fp, fn, tp = cm.ravel()
-        output = "TN" + str(tn) + "FP" + str(fp) + "FN" + str(fn) + "TP" + str(tp)
+        output = "TN:" + str(tn) + "FP:" + str(fp) + "FN:" + str(fn) + "TP:" + str(tp)
         print(output)
         return output
 
