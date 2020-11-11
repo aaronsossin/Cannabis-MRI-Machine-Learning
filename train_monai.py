@@ -1,40 +1,41 @@
-from torch.utils.tensorboard import SummaryWriter
-import pandas as pd
-from monai.metrics import compute_roc_auc
-from monai.transforms import AddChanneld, Compose, LoadNiftid, RandRotate90d, Resized, ScaleIntensityd, ToTensord
-from sklearn.model_selection import train_test_split
-from glob import glob
-import random
-import nibabel
-from matplotlib import pyplot as plt
 import os
-import numpy as np
-import torch
-from torch.utils.data import DataLoader
+import json
 import monai
-from monai.data import CSVSaver
-from monai.transforms import AddChanneld, Compose, LoadNiftid, Resized, ScaleIntensityd, ToTensord
-from sklearn.metrics import confusion_matrix
-from nilearn.decoding import SpaceNetRegressor
-from nilearn.image import smooth_img, resample_img, load_img, index_img, concat_imgs
-from nilearn.datasets import load_mni152_template
-from nilearn.plotting import plot_stat_map
-from nilearn import plotting
-from nilearn.plotting import show
 import nilearn
-from sklearn.metrics import r2_score
-from nilearn.image import mean_img
+import numpy as np
+import pandas as pd
+import torch
+from matplotlib import pyplot as plt
+from monai.data import CSVSaver
+from monai.metrics import compute_roc_auc
+from monai.transforms import AddChanneld, Compose, LoadNiftid, Resized, ScaleIntensityd, ToTensord
+from monai.transforms import RandRotate90d
+from nilearn import plotting
+from nilearn.decoding import SpaceNetRegressor
+from nilearn.image import smooth_img, resample_img, load_img
 from nilearn.input_data import NiftiMasker
-from sklearn.svm import SVC
+from nilearn.plotting import plot_stat_map
+from nilearn.plotting import show
 from sklearn.feature_selection import SelectPercentile, f_classif
+from sklearn.metrics import confusion_matrix
+from sklearn.metrics import r2_score
+from sklearn.model_selection import GridSearchCV
+from sklearn.model_selection import cross_val_score
+from sklearn.model_selection import train_test_split
 from sklearn.pipeline import Pipeline
-from sklearn.model_selection import LeaveOneGroupOut, cross_val_score
-from File_Structure import File_Structure
+from sklearn.svm import SVC
+from skorch import NeuralNetClassifier
+from torch.utils.data import DataLoader
+from torch.utils.tensorboard import SummaryWriter
+
+import resnet as rs
 from AlexNet import AlexNet3D
-from nifty_file import nifty_file
+from File_Structure import File_Structure
+from sklearn.model_selection import KFold
+
 
 class train_monai:
-    def __init__(self, epochs=2, task='control', model_type= "nilearn", pytorch_version = 0):
+    def __init__(self, epochs=2, task='control', model_type= "nilearn", pytorch_version = 0, loss_functions = [], optimizers = [], learning_rates = [], cv=3):
         self.train_files = None
         self.val_files = None
         self.train_transforms = None
@@ -46,10 +47,15 @@ class train_monai:
         self.val_loader = None
         self.train_ds = None
         self.val_ds = None
+
         self.file_structure = dict()
         self.dir_path = os.path.dirname(os.path.realpath(__file__))
 
         # Based on Parameters
+        self.loss_functions = loss_functions
+        self.optimizers = optimizers
+        self.learning_rates = learning_rates
+        self.cv = cv
         self.task = task
         self.model_type = model_type
         self.epochs = epochs
@@ -57,9 +63,45 @@ class train_monai:
         self.participant_data = pd.read_csv("participants.tsv", sep='\t')
 
         # Runs on Initialization to Create File Structure
-        self.saved_model_dict = "best_metric_" + self.task + ":" + self.model_type + "," + str(self.pytorch_version) + ".pth"
+        self.saved_model_dict = "best_metric_" + self.task + ":" + self.model_type + ":" + str(self.pytorch_version) + ".pth"
         self.File_Structure = File_Structure(self.task)
         self.File_Structure.organize_directory()
+
+    def cv_grid_search(self, X, y):
+
+        kf = KFold(n_splits = self.cv, random_state=None,shuffle=False)
+        counter = 0
+        scores = dict()
+        for train_index, test_index in kf.split(X):
+            scores[counter] = dict()
+            X_train, X_test = X[train_index], X[test_index]
+            y_train, y_test = y[train_index], y[test_index]
+
+
+            for optimizer in self.optimizers:
+
+                for learning_rate in self.learning_rates:
+
+                    for loss_function in self.loss_functions:
+
+                        key = str(optimizer) + ":" + " LR: " + str(learning_rate) + ":" + str(loss_function)
+                        print(key)
+
+                        self.setup(X_train, X_test, y_train, y_test, learning_rate, optimizer, loss_function)
+                        self.monai_train()
+                        score = self.monai_eval()
+
+                        scores[counter][key] = score
+                        print("SCORE: ", score)
+
+            counter += 1
+
+        stringified_dict = json.loads(json.dumps(scores), parse_int=str)
+        print(stringified_dict)
+        outF = open(self.saved_model_dict.replace('.pth','.txt'), "w")
+        outF.write(str(stringified_dict))
+        outF.close()
+
 
     # 'Brain' of code
     def evaluate(self, subset, fraction, kernel='linear', penalty='graph-net'):
@@ -74,7 +116,13 @@ class train_monai:
             shape = (256, 182, 256)
 
         # The train/eval data specialized for either regression or classification
-        X_train, X_test, y_train, y_test = self.setup(subset, fraction)
+        images, labels = self.File_Structure.model_input(subset, fraction)
+        X_train, X_test, y_train, y_test = train_test_split(images, labels, test_size=0.4, shuffle=False)
+        self.setup(X_train, X_test, y_train, y_test, 1e-5, torch.optim.SGD, torch.nn.CrossEntropyLoss())
+        X = np.append(X_train, X_test)
+        y = np.append(y_train, y_test)
+
+        self.cv_grid_search(X,y)
 
         # Run model
         if self.model_type == "nilearn":
@@ -83,8 +131,6 @@ class train_monai:
                 score = self.nilearn(X_train, X_test, y_train, y_test, shape, penalty)
 
             elif self.task == "segmentation":
-                X = np.append(X_train, X_test)
-                y = np.append(y_train, y_test)
                 score = self.nilearn_SVM(X, y, shape, kernel)
 
         elif self.model_type == "monai":
@@ -99,12 +145,11 @@ class train_monai:
         print("Score: ", score)
 
     # Setup the Monai File Structure and Train/Eval images/labels
-    def setup(self, subset="all", fraction=1):
+    def setup(self, X_train, X_test, y_train, y_test, learning_rate, optimizer, loss_function):
 
         # Extract images and labels from the participant files in directory
 
-        images, labels = self.File_Structure.model_input(subset, fraction)
-        X_train, X_test, y_train, y_test = train_test_split(images, labels, test_size = 0.4, shuffle=False)
+        #X_train, X_test, y_train, y_test = train_test_split(images, labels, test_size = 0.4, shuffle=False)
 
 
         self.train_files = [{"img": img, "label": label} for img, label in zip(X_train, y_train)]
@@ -158,7 +203,9 @@ class train_monai:
         # MODELS:
         if self.pytorch_version == 1:
             self.model = AlexNet3D()
-        if self.pytorch_version == 121:
+        elif self.pytorch_version == 2:
+            self.model = rs.resnet200()
+        elif self.pytorch_version == 121:
             self.model = monai.networks.nets.densenet.densenet121(spatial_dims=3, in_channels=1, out_channels=2).to(
                 self.device)
         elif self.pytorch_version == 169:
@@ -170,8 +217,17 @@ class train_monai:
         #self.model = monai.networks.nets.SegResNetVAE(input_image_size=(96,96,96)).to(self.device)
 
         ############## GOOD OPTIONS FOR HYPER-PARAMETER TESTING #####################
-        self.loss_function = torch.nn.CrossEntropyLoss()
-        self.optimizer = torch.optim.Adam(self.model.parameters(), 1e-5)
+        if optimizer == "SGD":
+            self.optimizer = torch.optim.SGD(self.model.parameters(), learning_rate)
+        elif optimizer == "Adam":
+            self.optimizer = torch.optim.Adam(self.model.parameters(), learning_rate)
+
+        if loss_function == "CrossEntropyLoss":
+            self.loss_function = torch.nn.CrossEntropyLoss()
+        elif loss_function == "MSELoss":
+            self.loss_function = torch.nn.MSELoss()
+        elif loss_function == "NLLLoss":
+            self.loss_function = torch.nn.NLLLoss()
         return [X_train, X_test, y_train, y_test]
 
     # Entire Function copy-pasted from ....com, trains the model and saves it to directory
@@ -182,6 +238,7 @@ class train_monai:
         best_metric = -1
         best_metric_epoch = -1
         writer = SummaryWriter()
+        torch.save(self.model.state_dict(), self.saved_model_dict)  # ADDED FOR SMALL EPOCH STUFF
         for epoch in range(self.epochs):
             print("-" * 10)
             print(f"epoch {epoch + 1}/{self.epochs}")
@@ -193,10 +250,8 @@ class train_monai:
                 inputs, labels = batch_data["img"].to(self.device), batch_data["label"].to(self.device)
                 self.optimizer.zero_grad()
                 outputs = self.model(inputs)
-                print(outputs)
                 if self.pytorch_version == 1:
                     outputs = torch.nn.functional.softmax(outputs, dim=0)
-                print(outputs)
                 loss = self.loss_function(outputs, labels)
                 loss.backward()
                 self.optimizer.step()
@@ -257,13 +312,13 @@ class train_monai:
                 saver.save_batch(val_outputs, val_data["img_meta_dict"])
             flat_real = self.flatten_list(real)
             flat_predicted = self.flatten_list(predicted)
-            self.binary_classification(flat_real, flat_predicted)
+            binary_ = self.binary_classification(flat_real, flat_predicted)
             metric = num_correct / metric_count
             print("evaluation metric:", metric)
             saver.finalize()
 
 
-            return metric
+            return [metric, binary_]
 
     # Segmentation
     def nilearn_SVM(self,  X, y, shape, kernel='linear'):
@@ -331,7 +386,6 @@ class train_monai:
             c = resample_img(b, target_affine=np.eye(4), target_shape=shape)
             new_X_test.append(c)
 
-
         print("Resamplng Complete")
 
         background_img = new_X_train[0]
@@ -383,15 +437,15 @@ class train_monai:
 
         title = loss_function + "weights"
         plot_stat_map(coef_img, background_img, title=title,
-                     display_mode="y", dim=-.5)
+                      display_mode="y", dim=-.5)
         plot_stat_map(coef_img, background_img, title=title,
-                      display_mode="x", dim=-.5)
+                       display_mode="x", dim=-.5)
         plot_stat_map(coef_img, background_img, title=title,
-                      display_mode="z", dim=-.5)
+                       display_mode="z", dim=-.5)
         #plot_stat_map(coef_img, background_img, title="graph-net weightsy", display_mode="y", cut_coords=1, dim=-.5)
         #plot_stat_map(coef_img, background_img, title="graph-net weightsz",
                       #display_mode="z", cut_coords=1, dim=-.5)
-        #plot_stat_map(coef_img, background_img, title="graph-net weights", dim=-.5)
+        #plot_stat_map(coef_img, background_img, title=title, dim=-.5)
         plt.show()
 
         # Trying to convert to MRI coordinates but doesn't work
@@ -442,11 +496,18 @@ class train_monai:
         print(y_pred)
         cm = confusion_matrix(y_true, y_pred)
         tn, fp, fn, tp = cm.ravel()
-        print("TN", tn, "FP", fp, "FN", fn, "TP", tp)
+        output = "TN" + str(tn) + "FP" + str(fp) + "FN" + str(fn) + "TP" + str(tp)
+        print(output)
+        return output
 
         # y_pred_class = y_pred_pos > threshold
         # tn, fp, fn, tp = confusion_matrix(y_true, y_pred_class).ravel()
         # false_positive_rate = fp / (fp + tn)
+
+    def plot_grid_search(self, cv_results, grid_param_1, grid_param_2, name_param_1, name_param_2):
+        print("doesn't work lmao")
+
+
 #
 # def model_input(self, task, sub="func/"):
 #        images = []
@@ -489,3 +550,24 @@ class train_monai:
 #                         self.file_structure[x.replace("func", '')] = [filenames]
 #         print(self.file_structure.keys())
 #         return self.file_structure
+
+
+#net = NeuralNetClassifier(
+        #     self.model,
+        #     max_epochs=50,
+        #     # Shuffle training data on each epoch
+        #     iterator_train__shuffle=True,
+        # )
+        # # deactivate skorch-internal train-valid split and verbose logging
+        # net.set_params(train_split=False, verbose=0)
+        # params = {
+        #     'lr': self.learning_rates,
+        #     'criterion': ['Adam', 'SGD']
+        # }
+        # gs = GridSearchCV(net, params, refit=False, cv=3, scoring='balanced_accuracy', verbose=2)
+        #
+        # gs.fit(X, y)
+        # print("best score: {:.3f}, best params: {}".format(gs.best_score_, gs.best_params_))
+        #
+        # # Calling Method
+        # self.plot_grid_search(gs.cv_results_, torch.nn.lr, torch.nn.criterion, 'lr', 'Loss Function')

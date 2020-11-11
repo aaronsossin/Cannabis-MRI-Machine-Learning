@@ -17,7 +17,6 @@ from monai.data import CSVSaver
 import os
 from glob import glob
 import pandas as pd
-
 from train_monai import train_monai
 from plot_participant_data import plot_participant_data
 
@@ -42,6 +41,7 @@ test_epochs = False
 # Try Resnet121/101
 # N1Loss looks good
 # TRANSFER LEARNING WITH MONAI saved dict!!!!!!!!!!!!!!!!!!!!! Or, maybe a new unsupervised?
+# Balanced Accuracy instead of accuracy
 
 # Exclamation
 print("BITCH")
@@ -58,13 +58,14 @@ task = "classification"
 ## MORE TO COME
 model_type = "monai"
 
-# MONAI DENSENET VERSION
+# PYTORCH MODELS
 ## 1. 121
 ## 2. 201
 ## 3. 169
 ## 4. 264
 ## 5. 1 (AlexNet)
-pytorch_version = 1
+## 6. 2 (ResNet)
+pytorch_version = 121
 
 """
 Note: The 'nilearn' regression also performs segmentation, but different process than the explicit segmenation
@@ -79,25 +80,44 @@ subset = "all"
 # FRACTION
 ## Determine what fraction [0,1] of participant data to model (for time constraints, may want to do less)
 ## '1' is all, '0' is none, '0.5' is half
-fraction = 1
+fraction = 0.2
+
+# LEARNING RATES
+## 1. 1e-2 #https://www.sciencedirect.com/science/article/pii/S1077314217300620
+## 1. 1e-5 #Default
+## 1. 1e-3 or 1e-4 https://www.sciencedirect.com/science/article/pii/S1361841516301839, https://www.sciencedirect.com/science/article/pii/S0895611119300771
+learning_rates = [1e-3, 1e-5]
+
+# OPTIMIZERS
+## 1. Adam
+## 2. SGD #https://www.sciencedirect.com/science/article/pii/S1077314217300620
+#optimizers = [torch.optim.Adam, torch.optim.SGD]
+optimizers = ["SGD"]
+
+# LOSS FUNCTIONS
+loss_functions = ["CrossEntropyLoss", "NLLLoss"]
+
+#Cross Validation 'K'
+cv = 2 #SHOULD BE 3
 
 # Hyper-parameters
-epochs = 6 # Only relevent for the MONAI model
+epochs = 1 # Only relevent for the pytorch model
 penalty = "graph-net" #Only  for ni-learn, either "graph-net" or "tv-l1"
 
-# Columns to plot participant data
-to_plot = ['cudit total baseline', 'cudit total follow-up',
-    'audit total baseline',	'audit total follow-up', 'age at baseline ',
-    'age at onset first CB use',	'age at onset frequent CB use']
-
 # Initializing the Modelling Class with Abote parameters
-tm = train_monai(epochs=epochs, task=task, model_type = model_type, pytorch_version = pytorch_version)
+tm = train_monai(epochs=epochs, task=task, model_type = model_type, pytorch_version = pytorch_version,
+                   learning_rates = learning_rates, optimizers = optimizers, loss_functions = loss_functions, cv=cv)
 
 # Returns the evaluation metric when running the above settings
 if run_model:
     score = tm.evaluate(subset=subset, fraction=fraction, kernel='linear', penalty=penalty)
 
 if plot_participants:
+    # Columns to plot participant data
+    to_plot = ['cudit total baseline', 'cudit total follow-up',
+    'audit total baseline',	'audit total follow-up', 'age at baseline ',
+    'age at onset first CB use',	'age at onset frequent CB use']
+
     pd = plot_participant_data(pd.read_csv("participants.tsv", sep='\t'), to_plot)
     pd.plot_cats()
 
