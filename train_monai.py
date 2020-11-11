@@ -31,6 +31,8 @@ import resnet as rs
 from AlexNet import AlexNet3D
 from File_Structure import File_Structure
 from sklearn.model_selection import KFold
+from nilearn.datasets import load_mni152_template
+from nilearn.image import concat_imgs, index_img
 
 
 class train_monai:
@@ -116,11 +118,11 @@ class train_monai:
         # The train/eval data specialized for either regression or classification
         images, labels = self.File_Structure.model_input(subset, fraction)
         X_train, X_test, y_train, y_test = train_test_split(images, labels, test_size=0.4, shuffle=False)
-        self.setup(X_train, X_test, y_train, y_test, 1e-5, torch.optim.SGD, torch.nn.CrossEntropyLoss())
+        self.setup(X_train, X_test, y_train, y_test, 1e-5, "SGD", "CrossEntropyLoss")
         X = np.append(X_train, X_test)
         y = np.append(y_train, y_test)
 
-        if self.cv > 0:
+        if self.cv > 0 and self.model_type == "monai":
             self.cv_grid_search(X,y)
 
         # Run model
@@ -247,6 +249,7 @@ class train_monai:
             for batch_data in self.train_loader:
                 step += 1
                 inputs, labels = batch_data["img"].to(self.device), batch_data["label"].to(self.device)
+
                 self.optimizer.zero_grad()
                 outputs = self.model(inputs)
                 if self.pytorch_version == 1:
@@ -337,16 +340,21 @@ class train_monai:
 
     # Segmentation
     def nilearn_SVM(self,  X, y, shape, kernel='linear'):
-
-        # Pre-processing
+        print("Resampling..")
+        from nilearn.image import resample_to_img
+        template = load_mni152_template()
         resampled_X = []
         for x in X:
-            resampled_X.append(resample_img(x, target_affine=np.eye(4), target_shape=shape))
+            z = resample_to_img(x, template)
+            z_affine = z.affine
+            resampled_X.append(resample_img(x, target_affine=z_affine, target_shape=shape))
+
         masker = NiftiMasker(smoothing_fwhm=4,
                                 standardize=True, memory="nilearn_cache", memory_level=1)
-        X = masker.fit_transform(resampled_X)
 
+        X = masker.fit_transform(resampled_X)
         # Model
+        print("Training...")
         svc = SVC(kernel=kernel)
         #pca = PCA(svd_solver='full', n_components=0.95) tru tjos with pca.fit_transform # TO TRY LATER
         feature_selection = SelectPercentile(f_classif, percentile=5)
@@ -361,6 +369,7 @@ class train_monai:
 
         # Return the corresponding mean prediction accuracy
         classification_accuracy = cv_scores.mean()
+
         print(classification_accuracy)
         print("Classification accuracy: %.4f / Chance level: %f" %
               (classification_accuracy, 1. / 2.))

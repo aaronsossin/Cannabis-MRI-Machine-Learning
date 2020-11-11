@@ -47,19 +47,19 @@ test_epochs = False
 # Balanced Accuracy instead of accuracy
 
 # Exclamation
-print("BITCH")
+print("~...Beep Boop Beep...~")
 
 # TASKS:
 ## 1. 'classification'
 ## 2. 'regression'
 ## 3. 'segmentation'
-task = "classification"
+task = "segmentation"
 
 # MODELS:
 ## 1. 'monai'
 ## 2. 'nilearn'
 ## MORE TO COME
-model_type = "monai"
+model_type = "nilearn"
 
 # PYTORCH MODELS
 ## 1. 121
@@ -83,7 +83,7 @@ subset = "all"
 # FRACTION
 ## Determine what fraction [0,1] of participant data to model (for time constraints, may want to do less)
 ## '1' is all, '0' is none, '0.5' is half
-fraction = 0.2
+fraction = 1
 
 # LEARNING RATES
 ## 1. 1e-2 #https://www.sciencedirect.com/science/article/pii/S1077314217300620
@@ -131,7 +131,7 @@ if test_epochs:
         score = tm.evaluate(subset='FU')
         print(x, ": ", score)
 
-
+print("c'est fini")
 # Results - Don't delete
 
 #Standard = 4 epochs, shuffled, densenet121 from monai, cross entropy loss, Adam1e-5,
