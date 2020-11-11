@@ -24,15 +24,16 @@ from sklearn.model_selection import cross_val_score
 from sklearn.model_selection import train_test_split
 from sklearn.pipeline import Pipeline
 from sklearn.svm import SVC
+from sklearn.decomposition import PCA
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
-
-import resnet as rs
+rs = None
 from AlexNet import AlexNet3D
 from File_Structure import File_Structure
 from sklearn.model_selection import KFold
 from nilearn.datasets import load_mni152_template
 from nilearn.image import concat_imgs, index_img
+from nilearn.image import resample_to_img
 
 
 class train_monai:
@@ -274,11 +275,13 @@ class train_monai:
                         val_images, val_labels = val_data["img"].to(self.device), val_data["label"].to(self.device)
                         y_pred = torch.cat([y_pred, self.model(val_images)], dim=0)
                         y = torch.cat([y, val_labels], dim=0)
-                    y_pred_numpy = list(np.array(y_pred.argmax(dim=1)))
-                    y_numpy = list(np.array(y))
-                    cm = confusion_matrix(y_numpy, y_pred_numpy)
-                    tn, fp, fn, tp = cm.ravel()
-                    acc_metric = (tp / (tp + fn) + tn / (fp + tn))/2.0 #Balanced Accuracy
+                    # y_pred_numpy = list(np.array(y_pred.argmax(dim=1).cpu()))
+                    # y_numpy = list(np.array(y.cpu()))
+                    # cm = confusion_matrix(y_numpy, y_pred_numpy)
+                    # tn, fp, fn, tp = cm.ravel()
+                    # acc_metric = (tp / (tp + fn) + tn / (fp + tn))/2.0 #Balanced Accuracy
+                    acc_value = torch.eq(y_pred.argmax(dim=1), y)
+                    acc_metric = acc_value.sum().item() / len(acc_value)
                     auc_metric = compute_roc_auc(y_pred, y, to_onehot_y=True, softmax=True)
                     if acc_metric > best_metric:
                         best_metric = acc_metric
@@ -341,7 +344,6 @@ class train_monai:
     # Segmentation
     def nilearn_SVM(self,  X, y, shape, kernel='linear'):
         print("Resampling..")
-        from nilearn.image import resample_to_img
         template = load_mni152_template()
         resampled_X = []
         for x in X:
@@ -355,16 +357,22 @@ class train_monai:
         X = masker.fit_transform(resampled_X)
         # Model
         print("Training...")
-        svc = SVC(kernel=kernel)
-        #pca = PCA(svd_solver='full', n_components=0.95) tru tjos with pca.fit_transform # TO TRY LATER
-        feature_selection = SelectPercentile(f_classif, percentile=5)
-        anova_svc = Pipeline([('anova', feature_selection), ('svc', svc)])
-        anova_svc.fit(X, y)
+        feature_selection = SelectPercentile(f_classif, percentile=2.5)
+        if True:
+            svc = SVC(kernel=kernel)
+            anova_svc = Pipeline([('anova', feature_selection), ('svc', svc)])
+            anova_svc.fit(X, y)
+        else:
+            #Doesn't work
+            svc = PCA(svd_solver='full', n_components=0.95)
+            anova_svc = Pipeline([('anova', feature_selection), ('pca', svc)])
+            anova_svc.fit(X, y)
+
         y_pred = anova_svc.predict(X)
         print(y_pred)
 
         # Compute the prediction accuracy for the different folds (i.e. session)
-        cv_scores = cross_val_score(anova_svc, X, y, cv = 8)
+        cv_scores = cross_val_score(anova_svc, X, y, cv = 3)
         print(cv_scores)
 
         # Return the corresponding mean prediction accuracy
@@ -375,10 +383,10 @@ class train_monai:
               (classification_accuracy, 1. / 2.))
 
         coef = svc.coef_
-
+        print("COEF\n", coef)
         # reverse feature selection
         coef = feature_selection.inverse_transform(coef)
-
+        print("COEF_INVERSE\n", coef)
         # reverse masking
         weight_img = masker.inverse_transform(coef)
 

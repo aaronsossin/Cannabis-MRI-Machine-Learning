@@ -68,7 +68,7 @@ model_type = "nilearn"
 ## 4. 264
 ## 5. 1 (AlexNet)
 ## 6. 2 (ResNet)
-pytorch_version = 121
+pytorch_version = 169
 
 """
 Note: The 'nilearn' regression also performs segmentation, but different process than the explicit segmenation
@@ -89,16 +89,16 @@ fraction = 1
 ## 1. 1e-2 #https://www.sciencedirect.com/science/article/pii/S1077314217300620
 ## 1. 1e-5 #Default
 ## 1. 1e-3 or 1e-4 https://www.sciencedirect.com/science/article/pii/S1361841516301839, https://www.sciencedirect.com/science/article/pii/S0895611119300771
-learning_rates = [1e-3, 1e-5]
+learning_rates = [1e-5, 1e-3]
 
 # OPTIMIZERS
 ## 1. Adam
 ## 2. SGD #https://www.sciencedirect.com/science/article/pii/S1077314217300620
 #optimizers = [torch.optim.Adam, torch.optim.SGD]
-optimizers = ["SGD"]
+optimizers = ["Adam", "SGD"]
 
 # LOSS FUNCTIONS
-loss_functions = ["CrossEntropyLoss", "NLLLoss"]
+loss_functions = ["CrossEntropyLoss"]
 
 #CROSS VALIDATION 'K'
 ## CV = 0, simply doesn't perform cross validation and goes to default hyperparameters
