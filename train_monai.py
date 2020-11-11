@@ -262,8 +262,7 @@ class train_monai:
             epoch_loss /= step
             print(f"epoch {epoch + 1} average loss: {epoch_loss:.4f}")
 
-            #if (epoch + 1) % val_interval == 0:
-            if True:
+            if (epoch + 1) % val_interval == 0:
                 self.model.eval()
                 with torch.no_grad():
                     y_pred = torch.tensor([], dtype=torch.float32, device=self.device)
