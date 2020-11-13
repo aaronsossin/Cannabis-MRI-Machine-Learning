@@ -17,34 +17,19 @@ from monai.data import CSVSaver
 import os
 from glob import glob
 import pandas as pd
-from train_monai import train_monai
+from run_tests import run_tests
 from plot_participant_data import plot_participant_data
-
 from nilearn import datasets, image
 
-##########################################
-"""
-Environment set up:
-1. pip install nilearn
-2. pip install monai
-3. pip install torch
-4. pip install resnet
-5. pip install skorch
-6. pip install tensorflow
-"""
-##############################################
 
-
-#Only run_model need ever be run.
-run_model = True
-plot_participants = False
-test_epochs = False
+#To Run Model set to True
+run_experiment = True
 
 #IDEAS
-# Try Resnet121/101
-# N1Loss looks good
 # TRANSFER LEARNING WITH MONAI saved dict!!!!!!!!!!!!!!!!!!!!! Or, maybe a new unsupervised?
-# Balanced Accuracy instead of accuracy
+
+#To do
+# Do SVM regression
 
 # Exclamation
 print("~...Beep Boop Beep...~")
@@ -53,22 +38,28 @@ print("~...Beep Boop Beep...~")
 ## 1. 'classification'
 ## 2. 'regression'
 ## 3. 'segmentation'
-task = "segmentation"
+TASK = "regression"
 
 # MODELS:
-## 1. 'monai'
-## 2. 'nilearn'
+## 1. 'PyTorch'
+## 2. 'SpaceNet'
+## 3. 'SVM'
 ## MORE TO COME
-model_type = "nilearn"
+MODEL_TYPE = "SVM"
+
+SPACENET_PENALTY = "tv-l1" #Only  for ni-learn, either "graph-net" or "tv-l1"
 
 # PYTORCH MODELS
 ## 1. 121
 ## 2. 201
 ## 3. 169
 ## 4. 264
-## 5. 1 (AlexNet)
-## 6. 2 (ResNet)
-pytorch_version = 169
+## 5. 1 ~(AlexNet)
+## 6. 2 ~(ResNet)
+PYTORCH_VERSION = 2
+
+#Whether to use Pre-trained Resnet or not
+PRETRAINED_RESNET = False
 
 """
 Note: The 'nilearn' regression also performs segmentation, but different process than the explicit segmenation
@@ -77,46 +68,46 @@ Note: The 'nilearn' regression also performs segmentation, but different process
 # SUBSET:
 ## 1. FU (only follow up scores (after the 3 years)
 ## 2. BL (baseline, first session)
+## 3. all
 ## Each participant has both FU and BL MRI, and also the MRIs are of different shape
-subset = "all"
+SUBSET = "all"
 
 # FRACTION
 ## Determine what fraction [0,1] of participant data to model (for time constraints, may want to do less)
 ## '1' is all, '0' is none, '0.5' is half
-fraction = 1
+FRACTION = 1
 
 # LEARNING RATES
 ## 1. 1e-2 #https://www.sciencedirect.com/science/article/pii/S1077314217300620
 ## 1. 1e-5 #Default
 ## 1. 1e-3 or 1e-4 https://www.sciencedirect.com/science/article/pii/S1361841516301839, https://www.sciencedirect.com/science/article/pii/S0895611119300771
-learning_rates = [1e-5, 1e-3]
+LEARNING_RATES = [1e-5, 1e-3]
 
 # OPTIMIZERS
 ## 1. Adam
 ## 2. SGD #https://www.sciencedirect.com/science/article/pii/S1077314217300620
 #optimizers = [torch.optim.Adam, torch.optim.SGD]
-optimizers = ["Adam", "SGD"]
+OPTIMIZERS = ["Adam", "SGD"]
 
 # LOSS FUNCTIONS
-loss_functions = ["CrossEntropyLoss"]
+LOSS_FUNCTIONS = ["CrossEntropyLoss"]
 
 #CROSS VALIDATION 'K'
 ## CV = 0, simply doesn't perform cross validation and goes to default hyperparameters
-cv = 3
+CV = 3
 
 # Hyper-parameters
-epochs = 1 # Only relevent for the pytorch model
-penalty = "graph-net" #Only  for ni-learn, either "graph-net" or "tv-l1"
-
-# Initializing the Modelling Class with Abote parameters
-tm = train_monai(epochs=epochs, task=task, model_type = model_type, pytorch_version = pytorch_version,
-                   learning_rates = learning_rates, optimizers = optimizers, loss_functions = loss_functions, cv=cv)
+EPOCHS = 1 # Only relevent for the pytorch model
 
 # Returns the evaluation metric when running the above settings
-if run_model:
-    score = tm.evaluate(subset=subset, fraction=fraction, kernel='linear', penalty=penalty)
+if run_experiment:
+    # Initializing the Modelling Class with Above Parameters
+    evaluator = run_tests(epochs=EPOCHS, task=TASK, model_type = MODEL_TYPE, pytorch_version = PYTORCH_VERSION,
+                       learning_rates = LEARNING_RATES, optimizers = OPTIMIZERS, loss_functions = LOSS_FUNCTIONS, cv=CV, subset=SUBSET, fraction=FRACTION, penalty = SPACENET_PENALTY
+                       , pretrained_resnet = PRETRAINED_RESNET)
+    score = evaluator.evaluate()
 
-if plot_participants:
+if False:
     # Columns to plot participant data
     to_plot = ['cudit total baseline', 'cudit total follow-up',
     'audit total baseline',	'audit total follow-up', 'age at baseline ',
@@ -125,13 +116,8 @@ if plot_participants:
     pd = plot_participant_data(pd.read_csv("participants.tsv", sep='\t'), to_plot)
     pd.plot_cats()
 
-if test_epochs:
-    for x in epochs:
-        tm = train_monai(epochs = x, task = task, model_type = model_type)
-        score = tm.evaluate(subset='FU')
-        print(x, ": ", score)
-
 print("c'est fini")
+
 # Results - Don't delete
 
 #Standard = 4 epochs, shuffled, densenet121 from monai, cross entropy loss, Adam1e-5,
@@ -215,7 +201,4 @@ print("c'est fini")
 # plt.legend()
 # plt.show()
 
-# 2. Regression
-
-# 3. Segmentation
 

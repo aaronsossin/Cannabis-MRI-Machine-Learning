@@ -1,35 +1,9 @@
-from torch.utils.tensorboard import SummaryWriter
 import pandas as pd
-from monai.metrics import compute_roc_auc
-from monai.transforms import AddChanneld, Compose, LoadNiftid, RandRotate90d, Resized, ScaleIntensityd, ToTensord
-from sklearn.model_selection import train_test_split
-from glob import glob
 import random
-import nibabel
-from matplotlib import pyplot as plt
 import os
 import numpy as np
-import torch
-from torch.utils.data import DataLoader
-import monai
-from monai.data import CSVSaver
-from monai.transforms import AddChanneld, Compose, LoadNiftid, Resized, ScaleIntensityd, ToTensord
-from sklearn.metrics import confusion_matrix
-from nilearn.decoding import SpaceNetRegressor
-from nilearn.image import smooth_img, resample_img, load_img, index_img, concat_imgs
-from nilearn.datasets import load_mni152_template
-from nilearn.plotting import plot_stat_map
-from nilearn import plotting
-from nilearn.plotting import show
-import nilearn
-from sklearn.metrics import r2_score
-from nilearn.image import mean_img
-from nilearn.input_data import NiftiMasker
-from sklearn.svm import SVC
-from sklearn.feature_selection import SelectPercentile, f_classif
-from sklearn.pipeline import Pipeline
-from sklearn.model_selection import LeaveOneGroupOut, cross_val_score
 from nifty_file import nifty_file
+
 
 class File_Structure:
     def __init__(self, task):
@@ -39,12 +13,12 @@ class File_Structure:
         self.participant_data = pd.read_csv("participants.tsv", sep='\t')
 
     # Returns the X and Y of model
-    def model_input(self, subset, fraction = 1):
+    def model_input(self, subset, fraction=1):
         images = []
         labels = []
         nfs = list(self.file_structure.keys())
-        random.Random(5).shuffle(nfs)  # Shuffle USED TO BE 4, but didn't seem legit
-        if self.task == "classification":
+        random.Random(8).shuffle(nfs)  # Shuffle USED TO BE 4, but didn't seem legit
+        if self.task == "classification" or self.task == "segmentation":
             for x in nfs:
                 nf = self.file_structure[x]
                 if subset == "all" or subset == "FU":
@@ -75,6 +49,7 @@ class File_Structure:
         lim = int(fraction * len(images))
         images = images[0:lim]
         labels = labels[0:lim]
+        print(labels)
         return images, labels
 
     def organize_directory(self):

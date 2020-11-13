@@ -1,0 +1,11 @@
+{'0':
+{'Adam: LR: 1e-05:CrossEntropyLoss': ['TN:3FP:5FN:8TP:12', {'sensitivity': 0.6, 'specificity': 0.375, 'balanced_accuracy': 0.4875, 'accuracy': 0.5357142857142857}],
+'SGD: LR: 1e-05:CrossEntropyLoss': ['TN:4FP:4FN:3TP:17', {'sensitivity': 0.85, 'specificity': 0.5, 'balanced_accuracy': 0.675, 'accuracy': 0.75}]},
+
+'1':
+{'Adam: LR: 1e-05:CrossEntropyLoss': ['TN:11FP:7FN:2TP:8', {'sensitivity': 0.8, 'specificity': 0.6111111111111112, 'balanced_accuracy': 0.7055555555555556, 'accuracy': 0.6785714285714286}],
+'SGD: LR: 1e-05:CrossEntropyLoss': ['TN:14FP:4FN:10TP:0', {'sensitivity': 0.0, 'specificity': 0.7777777777777778, 'balanced_accuracy': 0.3888888888888889, 'accuracy': 0.5}]}, '
+
+2':
+{'Adam: LR: 1e-05:CrossEntropyLoss': ['TN:16FP:2FN:4TP:6', {'sensitivity': 0.6, 'specificity': 0.8888888888888888, 'balanced_accuracy': 0.7444444444444445, 'accuracy': 0.7857142857142857}],
+'SGD: LR: 1e-05:CrossEntropyLoss': ['TN:17FP:1FN:8TP:2', {'sensitivity': 0.2, 'specificity': 0.9444444444444444, 'balanced_accuracy': 0.5722222222222222, 'accuracy': 0.6785714285714286}]}}
