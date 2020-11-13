@@ -38,14 +38,14 @@ print("~...Beep Boop Beep...~")
 ## 1. 'classification'
 ## 2. 'regression'
 ## 3. 'segmentation'
-TASK = "regression"
+TASK = "classification"
 
 # MODELS:
 ## 1. 'PyTorch'
 ## 2. 'SpaceNet'
 ## 3. 'SVM'
 ## MORE TO COME
-MODEL_TYPE = "SVM"
+MODEL_TYPE = "PyTorch"
 
 SPACENET_PENALTY = "tv-l1" #Only  for ni-learn, either "graph-net" or "tv-l1"
 
@@ -56,7 +56,7 @@ SPACENET_PENALTY = "tv-l1" #Only  for ni-learn, either "graph-net" or "tv-l1"
 ## 4. 264
 ## 5. 1 ~(AlexNet)
 ## 6. 2 ~(ResNet)
-PYTORCH_VERSION = 2
+PYTORCH_VERSION = 4
 
 #Whether to use Pre-trained Resnet or not
 PRETRAINED_RESNET = False

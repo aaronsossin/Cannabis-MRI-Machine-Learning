@@ -99,6 +99,7 @@ class run_tests:
                         score = self.pytorch_eval()
 
                         scores[counter][key] = score
+                        print(scores)
 
             counter += 1
 
