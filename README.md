@@ -27,6 +27,8 @@ Environment Conditions
   - As long as you can create an array X = all filenames including the paths to those files, and y = the labels of these filenames, they can be fed into the "evaluate" function in "run_tests". 
   - You may also want to adjust the self.shape attribute in run_tests to reflect the nature of your dataset. 
 
+Results:
+
 Contact Information: 
 Aaron: sosaar@stanford.edu
 Vivian: vzhu04@stanford.edu
