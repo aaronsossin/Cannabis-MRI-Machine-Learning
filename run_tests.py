@@ -239,7 +239,8 @@ class run_tests:
 
     # Entire Function copy-pasted from ....com, trains the model and saves it to directory
     def pytorch_train(self):
-
+        acc_scores = dict()
+        auc_scores = dict()
         # start a typical PyTorch training
         val_interval = 5
         best_metric = -1
@@ -266,10 +267,11 @@ class run_tests:
                 epoch_loss += loss.item()
                 epoch_len = len(self.train_ds) // self.train_loader.batch_size
                 if step % 3 == 0:
-                    print(f"{step}/{epoch_len}, train_loss: {loss.item():.4f}")
+                    True
+                    #print(f"{step}/{epoch_len}, train_loss: {loss.item():.4f}")
                 writer.add_scalar("train_loss", loss.item(), epoch_len * epoch + step)
             epoch_loss /= step
-            print(f"epoch {epoch + 1} average loss: {epoch_loss:.4f}")
+            #print(f"epoch {epoch + 1} average loss: {epoch_loss:.4f}")
 
             if (epoch + 1) % val_interval == 0:
                 self.model.eval()
@@ -288,6 +290,8 @@ class run_tests:
                     acc_value = torch.eq(y_pred.argmax(dim=1), y)
                     acc_metric = acc_value.sum().item() / len(acc_value)
                     auc_metric = compute_roc_auc(y_pred, y, to_onehot_y=True, softmax=True)
+                    acc_scores[epoch] = acc_metric
+                    auc_scores[epoch] = auc_metric
                     if acc_metric > best_metric:
                         best_metric = acc_metric
                         best_metric_epoch = epoch + 1
@@ -300,10 +304,13 @@ class run_tests:
                     writer.add_scalar("val_accuracy", acc_metric, epoch + 1)
         print(f"train completed, best_metric: {best_metric:.4f} at epoch: {best_metric_epoch}")
         writer.close()
+        print(acc_scores, "\n", auc_scores)
 
     # Evaluates best model that was saved
     # Only for classification right now
+
     def pytorch_eval(self):
+
         print("Evaluating...")
         self.model.load_state_dict(torch.load(self.saved_model_dict))
         self.model.eval()
