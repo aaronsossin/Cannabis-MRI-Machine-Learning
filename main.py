@@ -21,13 +21,12 @@ from run_tests import run_tests
 from plot_participant_data import plot_participant_data
 from nilearn import datasets, image
 
-
 #To Run Model set to True
 run_experiment = True
 
 #IDEAS
 # TRANSFER LEARNING WITH MONAI saved dict!!!!!!!!!!!!!!!!!!!!! Or, maybe a new unsupervised?
-
+# GET RID OF CROSS VAL FOR DECODERS
 #To do
 # Do SVM regression
 
@@ -38,7 +37,7 @@ print("~...Beep Boop Beep...~")
 ## 1. 'classification'
 ## 2. 'regression'
 ## 3. 'segmentation'
-TASK = "classification"
+TASK = "regression"
 
 # MODELS:
 ## 1. 'PyTorch'
@@ -56,7 +55,7 @@ SPACENET_PENALTY = "tv-l1" #Only  for ni-learn, either "graph-net" or "tv-l1"
 ## 4. 264
 ## 5. 1 ~(AlexNet)
 ## 6. 2 ~(ResNet)
-PYTORCH_VERSION = 4
+PYTORCH_VERSION = 264
 
 #Whether to use Pre-trained Resnet or not
 PRETRAINED_RESNET = False
@@ -75,7 +74,7 @@ SUBSET = "all"
 # FRACTION
 ## Determine what fraction [0,1] of participant data to model (for time constraints, may want to do less)
 ## '1' is all, '0' is none, '0.5' is half
-FRACTION = 1
+FRACTION = 0.4
 
 # LEARNING RATES
 ## 1. 1e-2 #https://www.sciencedirect.com/science/article/pii/S1077314217300620
@@ -91,6 +90,7 @@ OPTIMIZERS = ["Adam", "SGD"]
 
 # LOSS FUNCTIONS
 LOSS_FUNCTIONS = ["CrossEntropyLoss"]
+
 
 #CROSS VALIDATION 'K'
 ## CV = 0, simply doesn't perform cross validation and goes to default hyperparameters
@@ -117,88 +117,5 @@ if False:
     pd.plot_cats()
 
 print("c'est fini")
-
-# Results - Don't delete
-
-#Standard = 4 epochs, shuffled, densenet121 from monai, cross entropy loss, Adam1e-5,
-# 1. Controls vs. Heavy Users
-    # DENSENET 121
-    # 10 EPOCHS:
-#         YPRED:  [0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0]
-#         Classification Results:
-#         TN 5 FP 1 FN 10 TP 1
-#         evaluation metric: 0.35294117647058826
-    # 25 EPOCHS:
-#         YPRED:  [1, 0, 1, 0, 1, 0, 0, 0, 1, 1, 0, 1, 0, 1, 0, 1, 1]
-#         Classification Results:
-#         TN 3 FP 3 FN 5 TP 6
-#         evaluation metric: 0.5294117647058824
-    # 50 EPOCHS:
-#         Evaluating...
-#         YPRED:  [0, 0, 1, 0, 0, 0, 0, 0, 1, 1, 0, 1, 0, 1, 0, 1, 1]
-#         Classification Results:
-#         TN 4 FP 2 FN 6 TP 5
-#         evaluation metric: 0.5294117647058824
-    # 90 EPOCHS:
-#         Evaluating...
-#         YPRED:  [1, 0, 0, 0, 0, 1, 0, 0, 1, 1, 0, 1, 0, 1, 0, 1, 1]
-#         Classification Results:
-#         TN 4 FP 2 FN 5 TP 6
-#         evaluation metric: 0.5882352941176471
-
-    # DENSENET 264
-    # 10 EPOCHS
-    #     Evaluating...
-        # Classification Results:
-        # TN 6 FP 0 FN 8 TP 3
-        # evaluation metric: 0.5294117647058824
-
-    # 25 EPOCHS
-        #     Evaluating...
-        # Classification Results:
-        # [0, 0, 1, 0, 1, 0, 0, 1, 1, 0, 0, 1, 0, 1, 0, 1, 1]
-        # TN 3 FP 3 FN 6 TP 5
-        # evaluation metric: 0.47058823529411764
-
-    # 50 EOPCHS
-
-            #         Classification Results:
-            # [0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1]
-            # TN 6 FP 0 FN 8 TP 3
-            # evaluation metric: 0.5294117647058824
-   # 169
-    # 10
-        #     Classification Results:
-        # [0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1]
-        # TN 6 FP 0 FN 8 TP 3
-        # evaluation metric: 0.5294117647058824
-    # 25
-        #         Evaluating...
-        # Classification Results:
-        # [0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 1]
-        # TN 6 FP 0 FN 7 TP 4
-        # evaluation metric: 0.5882352941176471
-     # 50
-        #     Evaluating...
-        # Classification Results:
-        # [0, 0, 1, 1, 0, 1, 0, 0, 1, 1, 1, 1, 0, 1, 0, 1, 1]
-        # TN 3 FP 3 FN 4 TP 7
-        # evaluation metric: 0.5882352941176471
-    # SEGRESNET
-
-    # SEGRESNETVAE AUTOENCODER USES UNPSERVISED LARNING
-
-
-
-# fig = plt.figure()
-# plt.plot([10, 25, 50, 90], [0.353, 0.530, 0.530, 0.588], label="DenseNet121")
-# plt.plot([10, 25, 50, 90], [0.530, 0.470, 0.530, 0.530], label="DenseNet264")
-# plt.plot([10, 25, 50, 90], [0.530, 0.588, 0.588, 0.611], label="DenseNet169")
-# plt.plot([0,90], [0.5, 0.5], '--')
-# plt.title("Baseline Performances of MONAI-defined DenseNet Architectures")
-# plt.xlabel("Epoch Size")
-# plt.ylabel("Accuracy (%)")
-# plt.legend()
-# plt.show()
 
 

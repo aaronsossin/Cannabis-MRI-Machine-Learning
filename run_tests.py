@@ -30,6 +30,9 @@ from File_Structure import File_Structure
 from sklearn.model_selection import KFold
 from nilearn.image import resample_to_img
 from nilearn.datasets import load_mni152_template
+from nilearn import datasets, image
+from sklearn.metrics import mean_squared_error
+import tensorflow as tf
 
 import resnet
 
@@ -49,6 +52,7 @@ class run_tests:
         self.train_ds = None
         self.val_ds = None
         self.shape = None
+        self.output_shape = None
 
         self.file_structure = dict()
         self.dir_path = os.path.dirname(os.path.realpath(__file__))
@@ -72,6 +76,12 @@ class run_tests:
         self.saved_model_dict = "best_metric_" + self.task + ":" + self.model_type + ":" + str(self.pytorch_version) + ".pth"
         self.File_Structure = File_Structure(self.task)
         self.File_Structure.organize_directory()
+
+
+        if self.task == "classification":
+            self.output_shape = 2
+        else:
+            self.output_shape = 30
 
     def pytorch_cv_grid_search(self, X, y):
 
@@ -138,7 +148,7 @@ class run_tests:
 
         elif self.model_type == "PyTorch":
 
-            if self.cv > 0 and self.task == "classification":
+            if self.cv > 0:
                 self.pytorch_cv_grid_search(X, y)
 
             self.setup(X_train, X_test, y_train, y_test, 1e-5, "SGD", "CrossEntropyLoss")
@@ -147,8 +157,11 @@ class run_tests:
                 self.pytorch_train()
                 score = self.pytorch_eval()
 
+            elif self.task == "regression":
+                self.pytorch_train()
+                score = self.pytorch_eval()
             else:
-                print("Regression not available for pytorch")
+                print("Segmentation with PyTorch not an option")
 
         print("Score: ", score)
 
@@ -211,17 +224,21 @@ class run_tests:
         # MODELS:
         if self.pytorch_version == 1:
             self.model = AlexNet3D()
+            if torch.cuda.is_available():
+                self.model.cuda()
         elif self.pytorch_version == 2:
             self.model = resnet.resnet_101(pretrained=self.pretrained_resnet, progress=True)
+            if torch.cuda.is_available():
+                self.model.cuda()
         elif self.pytorch_version == 121:
-            self.model = monai.networks.nets.densenet.densenet121(spatial_dims=3, in_channels=1, out_channels=2).to(
+            self.model = monai.networks.nets.densenet.densenet121(spatial_dims=3, in_channels=1, out_channels=self.output_shape).to(
                 self.device)
         elif self.pytorch_version == 169:
-            self.model = monai.networks.nets.densenet.densenet264(spatial_dims=3, in_channels=1, out_channels=2).to(self.device)
+            self.model = monai.networks.nets.densenet.densenet264(spatial_dims=3, in_channels=1, out_channels=self.output_shape).to(self.device)
         elif self.pytorch_version == 201:
-            self.model = monai.networks.nets.densenet.densenet169(spatial_dims=3, in_channels=1, out_channels=2).to(self.device)
+            self.model = monai.networks.nets.densenet.densenet169(spatial_dims=3, in_channels=1, out_channels=self.output_shape).to(self.device)
         elif self.pytorch_version == 264:
-            self.model = monai.networks.nets.densenet.densenet201(spatial_dims=3, in_channels=1, out_channels=2).to(self.device)
+            self.model = monai.networks.nets.densenet.densenet201(spatial_dims=3, in_channels=1, out_channels=self.output_shape).to(self.device)
         #self.model = monai.networks.nets.SegResNetVAE(input_image_size=(96,96,96)).to(self.device)
 
         ############## GOOD OPTIONS FOR HYPER-PARAMETER TESTING #####################
@@ -230,18 +247,22 @@ class run_tests:
         elif optimizer == "Adam":
             self.optimizer = torch.optim.Adam(self.model.parameters(), learning_rate)
 
-        if loss_function == "CrossEntropyLoss":
-            self.loss_function = torch.nn.CrossEntropyLoss()
-        elif loss_function == "MSELoss":
+        if self.task == "regression":
             self.loss_function = torch.nn.MSELoss()
-        elif loss_function == "NLLLoss":
-            self.loss_function = torch.nn.NLLLoss()
+        else:
+            if loss_function == "CrossEntropyLoss":
+                self.loss_function = torch.nn.CrossEntropyLoss()
+            elif loss_function == "MSELoss":
+                self.loss_function = torch.nn.MSELoss()
+            elif loss_function == "NLLLoss":
+                self.loss_function = torch.nn.NLLLoss()
         return [X_train, X_test, y_train, y_test]
 
     # Entire Function copy-pasted from ....com, trains the model and saves it to directory
     def pytorch_train(self):
         acc_scores = dict()
         auc_scores = dict()
+
         # start a typical PyTorch training
         val_interval = 5
         best_metric = -1
@@ -262,17 +283,20 @@ class run_tests:
                 outputs = self.model(inputs)
                 if self.pytorch_version == 1:
                     outputs = torch.nn.functional.softmax(outputs, dim=0)
-                loss = self.loss_function(outputs, labels)
+                if self.task == "classification":
+                    loss = self.loss_function(outputs, labels)
+                else:
+                    loss = self.loss_function(outputs, labels.view(-1,1).float())
+
                 loss.backward()
                 self.optimizer.step()
                 epoch_loss += loss.item()
                 epoch_len = len(self.train_ds) // self.train_loader.batch_size
                 if step % 3 == 0:
-                    True
-                    #print(f"{step}/{epoch_len}, train_loss: {loss.item():.4f}")
+                    print(f"{step}/{epoch_len}, train_loss: {loss.item():.4f}")
                 writer.add_scalar("train_loss", loss.item(), epoch_len * epoch + step)
             epoch_loss /= step
-            #print(f"epoch {epoch + 1} average loss: {epoch_loss:.4f}")
+            print(f"epoch {epoch + 1} average loss: {epoch_loss:.4f}")
 
             if (epoch + 1) % val_interval == 0:
                 self.model.eval()
@@ -332,11 +356,17 @@ class run_tests:
                 saver.save_batch(val_outputs, val_data["img_meta_dict"])
             flat_real = self.flatten_list(real)
             flat_predicted = self.flatten_list(predicted)
-            binary_ = self.binary_classification(flat_real, flat_predicted)
-            metric = num_correct / metric_count
+            if self.task == "classification":
+                score = self.binary_classification(flat_real, flat_predicted)
+                metric = num_correct / metric_count
+            else:
+                print("REAL: ", flat_real)
+                print("PRED: ", flat_predicted)
+                score = mean_squared_error(flat_real, flat_predicted)
+                print(score)
             saver.finalize()
 
-            return binary_
+            return score
 
     def binary_classification(self, y_true, y_pred):
         print("Classification Results: ")
@@ -354,39 +384,50 @@ class run_tests:
         print(stats)
         return [output, stats]
 
-    def SVM(self,  X, y):
+    def SVM(self, X, y): #(-10.0, -26.0, 28.0) COORDINATES WERE FOUND
         print("Resampling..")
-        resampled_X = self.nilearn_resample(X)
 
-        masker = NiftiMasker(smoothing_fwhm=4,
+        X_resampled = self.nilearn_resample(X)
+
+
+        masker = NiftiMasker(smoothing_fwhm=1,
                                 standardize=True, memory="nilearn_cache", memory_level=1)
 
-        X = masker.fit_transform(resampled_X)
-
+        X = masker.fit_transform(X_resampled)
+        mean_img = nilearn.image.mean_img(X_resampled)
         # Model
         print("Training...")
-        feature_selection = SelectPercentile(f_classif, percentile=5)
+        feature_selection = SelectPercentile(f_classif, percentile=0.5)
 
         svc = SVC(kernel='linear')
         anova_svc = Pipeline([('anova', feature_selection), ('svc', svc)])
 
-
+        anova_svc.fit(X, y)
+        y_pred = anova_svc.predict(X)
+        #anova_svc.fit(X, y)
         # Compute the prediction accuracy for the different folds (i.e. session)
         if self.task == "classification":
-            scoring = "accuracy_score"
+            scoring = "accuracy"
         else:
             scoring = "neg_mean_absolute_error"
-        cv_scores = cross_val_score(anova_svc, X, y, cv = self.cv, scoring=scoring)
-        print(cv_scores)
+        #cv_scores = cross_val_score(anova_svc, X, y, cv = 1, scoring=scoring)
+        #print(cv_scores)
 
         # Return the corresponding mean prediction accuracy
-        score = cv_scores.mean()
+        #score = cv_scores.mean()
 
-        print("Score at task: ", score)
-
+        #print("Score at task: ", score)
+        from sklearn.metrics import mean_squared_error
         #Only half of data
-        anova_svc.fit(X, y)
-        coef = svc.coef_
+        #anova_svc.fit(X, y)
+        #y_pred = anova_svc.predict(X)
+        if self.task == "classification":
+            output, stats = self.binary_classification(y, y_pred)
+            print(stats)
+        else:
+            stats = mean_squared_error(y, y_pred)
+            print(stats)
+        coef = svc.coef_ #was svc
         print("COEF\n", coef)
         # reverse feature selection
         coef = feature_selection.inverse_transform(coef)
@@ -395,14 +436,28 @@ class run_tests:
         weight_img = masker.inverse_transform(coef)
 
         # Use the mean image as a background to avoid relying on anatomical data
-        mean_img = nilearn.image.mean_img(resampled_X)
+
 
         # Create the figure
         plot_stat_map(weight_img, mean_img, title='SVM weights')
 
         show()
 
-        return score
+        from nilearn import datasets, image
+        niimg = datasets.load_mni152_template()
+        # Find the MNI coordinates of the voxel (50, 50, 50)
+        l = image.coord_transform(70, 21, -20, niimg.affine)
+        print("MAYBE?", l)
+
+
+        return stats
+
+    def convert_coordinates(self, x, y, z):
+        x, y, z = 70, 21, -20
+        niimg = datasets.load_mni152_template()
+        # Find the MNI coordinates of the voxel (50, 50, 50)
+        converted = image.coord_transform((x, y, z), niimg.affine)
+        print("CONVERTED COORDINATES: ", converted)
 
 
     # Nilearn_Regression
@@ -427,38 +482,38 @@ class run_tests:
 
     def SpaceNet(self,X, y):
 
-        kf = KFold(n_splits=self.cv)
+
         background_computed = False
-        for train_index, test_index in kf.split(X):
-            print("New CV Run")
-            X_train, X_test = X[train_index], X[test_index]
-            y_train, y_test = y[train_index], y[test_index]
-            X_test = self.nilearn_resample(X_test)
-            X_train = self.nilearn_resample(X_train)
-            X_all = np.append(X_train, X_test)
-            if not background_computed:
-                background_img = nilearn.image.mean_img(X_all)
-                background_computed = True
-            scores = []
-            # Predictions on test set
-            if self.task == "classification":
-                decoder = self.new_decoder(self.task, self.penalty)
-                decoder.fit(X_train, y_train)
-                print("decoder fit")
-                y_pred = np.round(decoder.predict(X_test).ravel())
-                accuracy = np.average([1 if y_pred[i] == y_test[i] else 0 for i in range(len(y_pred))])
-                print(accuracy)
-                scores.append(accuracy)
-            else:
-                decoder = self.new_decoder(self.task, self.penalty)
-                decoder.fit(X_train, y_train)
-                print("decoder fit")
-                y_pred = decoder.predict(X_test).ravel()
-                mse = np.mean(np.abs(y_test - y_pred))
-                score = mse
-                r2 = r2_score(y_test, y_pred)
-                print(mse)
-                scores.append(mse)
+
+        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, shuffle=False)
+
+        X_test = self.nilearn_resample(X_test)
+        X_train = self.nilearn_resample(X_train)
+        X_all = np.append(X_train, X_test)
+        if not background_computed:
+            background_img = nilearn.image.mean_img(X_all)
+            print("background computer")
+            background_computed = True
+        scores = []
+        # Predictions on test set
+        if self.task == "classification":
+            decoder = self.new_decoder(self.task, self.penalty)
+            decoder.fit(X_train, y_train)
+            print("decoder fit")
+            y_pred = np.round(decoder.predict(X_test).ravel())
+            accuracy = np.average([1 if y_pred[i] == y_test[i] else 0 for i in range(len(y_pred))])
+            print(accuracy)
+            scores.append(accuracy)
+        else:
+            decoder = self.new_decoder(self.task, self.penalty)
+            decoder.fit(X_train, y_train)
+            print("decoder fit")
+            y_pred = decoder.predict(X_test).ravel()
+            mse = np.mean(np.abs(y_test - y_pred))
+            score = mse
+            r2 = r2_score(y_test, y_pred)
+            print(mse)
+            scores.append(mse)
         score = np.average(scores)
         print(score)
 
@@ -481,7 +536,7 @@ class run_tests:
         ax2.set_xlabel("subject")
         plt.legend(loc="best")
 
-        title = self.penalty + "weights"
+        title = self.penalty + " weights"
         plot_stat_map(coef_img, background_img, title=title)
 
         plt.show()
@@ -505,9 +560,6 @@ class run_tests:
             for j in i:
                 y.append(j)
         return y
-
-    def plot_grid_search(self, cv_results, grid_param_1, grid_param_2, name_param_1, name_param_2):
-        print("doesn't work lmao")
 
 
 #

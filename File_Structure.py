@@ -39,12 +39,12 @@ class File_Structure:
                     images.append(nf.pathFU)
                     labels.append(list(
                         self.participant_data[self.participant_data['participant_id'] == int(nf.sub)][
-                            'cudit-total-follow-up'].astype('float'))[0])
+                            'cudit-total-follow-up'].astype('int'))[0])
                 if subset == "all" or subset == "BL":
                     images.append(nf.pathBL)
                     labels.append(list(
                         self.participant_data[self.participant_data['participant_id'] == int(nf.sub)][
-                            'cudit-total-baseline'].astype('float'))[0])
+                            'cudit-total-baseline'].astype('int'))[0])
         images = np.array(images)
         lim = int(fraction * len(images))
         images = images[0:lim]
