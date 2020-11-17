@@ -33,7 +33,7 @@ Control vs. Heavy Cannabis User
 
 CUDIT Score
 
-![GitHub Logo](/results/DenseNet264_CuditScorePrediction_TrainLoss.png=20x20)
+![GitHub Logo](/results/DenseNet264_CuditScorePrediction_TrainLoss.png =50x50)
 Decoding
 
 Contact Information: 
