@@ -18,7 +18,6 @@ import os
 from glob import glob
 import pandas as pd
 from run_tests import run_tests
-from plot_participant_data import plot_participant_data
 from nilearn import datasets, image
 
 """
