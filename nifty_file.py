@@ -1,3 +1,7 @@
+"""
+Object describing a single subject's data
+"""
+
 class nifty_file:
     def __init__(self):
         self.sub = None
