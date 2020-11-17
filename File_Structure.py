@@ -4,6 +4,8 @@ import os
 import numpy as np
 from nifty_file import nifty_file
 
+DIRECTORY_PATH = "mri_data/"
+
 
 class File_Structure:
     def __init__(self, task):
@@ -71,8 +73,8 @@ class File_Structure:
 
             if type == "ses-BL":
                 nf.filenameBL = y
-                nf.pathBL = str("sub-" + sub + "/" + type + "/anat/" + y)
+                nf.pathBL = DIRECTORY_PATH + str("sub-" + sub + "/" + type + "/anat/" + y)
             elif type == "ses-FU":
                 nf.filenameFU = y
-                nf.pathFU = str("sub-" + sub + "/" + type + "/anat/" + y)
+                nf.pathFU = DIRECTORY_PATH + str("sub-" + sub + "/" + type + "/anat/" + y)
         return self.file_structure

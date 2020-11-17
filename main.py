@@ -21,14 +21,15 @@ from run_tests import run_tests
 from plot_participant_data import plot_participant_data
 from nilearn import datasets, image
 
+"""
+Below are a host of Parameters which should be set such as what type of experiment is to be run,
+with what model, and with what hyper-parameters.
+
+When ready, run code with "python main.py" in terminal
+"""
+
 #To Run Model set to True
 run_experiment = True
-
-#IDEAS
-# TRANSFER LEARNING WITH MONAI saved dict!!!!!!!!!!!!!!!!!!!!! Or, maybe a new unsupervised?
-# GET RID OF CROSS VAL FOR DECODERS
-#To do
-# Do SVM regression
 
 # Exclamation
 print("~...Beep Boop Beep...~")
@@ -36,8 +37,8 @@ print("~...Beep Boop Beep...~")
 # TASKS:
 ## 1. 'classification'
 ## 2. 'regression'
-## 3. 'segmentation'
 TASK = "regression"
+assert TASK in ["regression","classification"]
 
 # MODELS:
 ## 1. 'PyTorch'
@@ -45,8 +46,10 @@ TASK = "regression"
 ## 3. 'SVM'
 ## MORE TO COME
 MODEL_TYPE = "PyTorch"
+assert MODEL_TYPE in ["PyTorch", "SpaceNet", "SVM"]
 
 SPACENET_PENALTY = "tv-l1" #Only  for ni-learn, either "graph-net" or "tv-l1"
+assert SPACENET_PENALTY in ["tv-l1", "graph-net"]
 
 # PYTORCH MODELS
 ## 1. 121
@@ -56,6 +59,7 @@ SPACENET_PENALTY = "tv-l1" #Only  for ni-learn, either "graph-net" or "tv-l1"
 ## 5. 1 ~(AlexNet)
 ## 6. 2 ~(ResNet)
 PYTORCH_VERSION = 264
+assert PYTORCH_VERSION in [121, 201, 169, 264, 1, 2]
 
 #Whether to use Pre-trained Resnet or not
 PRETRAINED_RESNET = False
@@ -70,11 +74,12 @@ Note: The 'nilearn' regression also performs segmentation, but different process
 ## 3. all
 ## Each participant has both FU and BL MRI, and also the MRIs are of different shape
 SUBSET = "all"
+assert SUBSET in ["all","BL", "FU"]
 
 # FRACTION
 ## Determine what fraction [0,1] of participant data to model (for time constraints, may want to do less)
 ## '1' is all, '0' is none, '0.5' is half
-FRACTION = 0.4
+FRACTION = 1
 
 # LEARNING RATES
 ## 1. 1e-2 #https://www.sciencedirect.com/science/article/pii/S1077314217300620
@@ -85,7 +90,6 @@ LEARNING_RATES = [1e-5, 1e-3]
 # OPTIMIZERS
 ## 1. Adam
 ## 2. SGD #https://www.sciencedirect.com/science/article/pii/S1077314217300620
-#optimizers = [torch.optim.Adam, torch.optim.SGD]
 OPTIMIZERS = ["Adam", "SGD"]
 
 # LOSS FUNCTIONS
