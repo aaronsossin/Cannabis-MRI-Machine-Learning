@@ -111,15 +111,6 @@ if run_experiment:
                        , pretrained_resnet = PRETRAINED_RESNET)
     score = evaluator.evaluate()
 
-if False:
-    # Columns to plot participant data
-    to_plot = ['cudit total baseline', 'cudit total follow-up',
-    'audit total baseline',	'audit total follow-up', 'age at baseline ',
-    'age at onset first CB use',	'age at onset frequent CB use']
-
-    pd = plot_participant_data(pd.read_csv("participants.tsv", sep='\t'), to_plot)
-    pd.plot_cats()
-
 print("c'est fini")
 
 
