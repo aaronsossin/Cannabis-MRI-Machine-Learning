@@ -20,6 +20,7 @@ Environment Conditions
  
  How to Run? 
   - in "main.py" there are several hyperparameters denoting which task to run, and how to run it. After configuring, in the command line execute: python main.py
+  - The "run_tests.py" file is responsible for running everything: training/validating CNNs, Decoders, etc... and is called on by main.py
  
  "How can this be adapted to my own project?"
   - Inside the 'mri_data' folder, all the subject data is there and formatted by the BIDS format. This is a consistent format accross many OpenNeuroCV datasets. In "File_Structure.py", there is code for extracting all of the MRI filenames including their 'location paths' and labelling them based on the "participants.tsv" file. 
