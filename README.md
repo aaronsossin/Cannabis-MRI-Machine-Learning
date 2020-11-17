@@ -35,6 +35,8 @@ CUDIT Score
 
 ![GitHub Logo](/results/DenseNet264_CuditScorePrediction_TrainLoss.png)
 
+![GitHub Logo](/results/DenseNet264_CuditScorePrediction_Visual.png)
+
 Decoding
 
 Contact Information: 
