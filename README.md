@@ -43,6 +43,8 @@ CUDIT Score
 
 Decoding
 
+![GitHub Logo](/results/svm_decoding.png)
+
 Contact Information: 
 Aaron: sosaar@stanford.edu
 Vivian: vzhu04@stanford.edu
