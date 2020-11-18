@@ -29,9 +29,11 @@ Environment Conditions
 
 Results:
 
-Control vs. Heavy Cannabis User
+Control vs. Heavy Cannabis Users; GridSearch at 50 Epochs
 
 ![GitHub Logo](/results/Classification_Results.png)
+
+DenseNet264 at 200 Epochs
 
 ![GitHub Logo](/results/CNN_200epochs.png)
 
