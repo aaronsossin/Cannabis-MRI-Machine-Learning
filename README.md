@@ -33,6 +33,8 @@ Control vs. Heavy Cannabis User
 
 ![GitHub Logo](/results/Classification_Results.png)
 
+![GitHub Logo](/results/CNN_200epochs.png)
+
 CUDIT Score
 
 ![GitHub Logo](/results/DenseNet264_CuditScorePrediction_TrainLoss.png)
