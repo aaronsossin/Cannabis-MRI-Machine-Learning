@@ -33,6 +33,9 @@ Control vs. Heavy Cannabis Users; GridSearch at 50 Epochs
 
 ![GitHub Logo](/results/Classification_Results.png)
 
+
+![GitHub Logo](/results/binary_200.png)
+
 DenseNet264 at 200 Epochs
 
 ![GitHub Logo](/results/CNN_200epochs.png)
