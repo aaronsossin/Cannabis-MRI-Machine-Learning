@@ -36,7 +36,7 @@ print("~...Beep Boop Beep...~")
 # TASKS:
 ## 1. 'classification'
 ## 2. 'regression'
-TASK = "regression"
+TASK = "classification"
 assert TASK in ["regression","classification"]
 
 # MODELS:
@@ -44,7 +44,7 @@ assert TASK in ["regression","classification"]
 ## 2. 'SpaceNet'
 ## 3. 'SVM'
 ## MORE TO COME
-MODEL_TYPE = "PyTorch"
+MODEL_TYPE = "SpaceNet"
 assert MODEL_TYPE in ["PyTorch", "SpaceNet", "SVM"]
 
 SPACENET_PENALTY = "tv-l1" #Only  for ni-learn, either "graph-net" or "tv-l1"
@@ -78,7 +78,7 @@ assert SUBSET in ["all","BL", "FU"]
 # FRACTION
 ## Determine what fraction [0,1] of participant data to model (for time constraints, may want to do less)
 ## '1' is all, '0' is none, '0.5' is half
-FRACTION = 1
+FRACTION = 0.3
 
 # LEARNING RATES
 ## 1. 1e-2 #https://www.sciencedirect.com/science/article/pii/S1077314217300620

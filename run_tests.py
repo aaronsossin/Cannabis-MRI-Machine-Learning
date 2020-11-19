@@ -303,6 +303,7 @@ class run_tests:
     def pytorch_train(self):
         acc_scores = dict()
         auc_scores = dict()
+        train_scores = dict()
 
         # start a typical PyTorch training
         val_interval = 5
@@ -337,6 +338,7 @@ class run_tests:
                     print(f"{step}/{epoch_len}, train_loss: {loss.item():.4f}")
                 writer.add_scalar("train_loss", loss.item(), epoch_len * epoch + step)
             epoch_loss /= step
+            train_scores[epoch] = epoch_loss
             print(f"epoch {epoch + 1} average loss: {epoch_loss:.4f}")
 
             if (epoch + 1) % val_interval == 0:
@@ -357,7 +359,10 @@ class run_tests:
                     if self.task == "classification":
                         acc_value = torch.eq(y_pred.argmax(dim=1), y)
                         acc_metric = acc_value.sum().item() / len(acc_value)
-                        auc_metric = compute_roc_auc(y_pred, y, to_onehot_y=True, softmax=True)
+                        if self.model_type == 1:
+                            auc_metric = 0
+                        else:
+                            auc_metric = compute_roc_auc(y_pred, y, to_onehot_y=True, softmax=True)
                     else:
                         acc_metric = mean_squared_error(self.flatten_list(real), self.flatten_list(predicted))
                         auc_metric = 0
@@ -373,6 +378,9 @@ class run_tests:
                             epoch + 1, acc_metric, auc_metric, best_metric, best_metric_epoch
                         )
                     )
+                    print("ACC SCORES: ", acc_scores)
+                    print("AUC SCORES: ", auc_scores)
+                    print("EPOCH LOSSES: ", train_scores)
                     writer.add_scalar("val_accuracy", acc_metric, epoch + 1)
         print(f"train completed, best_metric: {best_metric:.4f} at epoch: {best_metric_epoch}")
         writer.close()
@@ -416,14 +424,12 @@ class run_tests:
 
     def SVM(self, X, y):  # (-10.0, -26.0, 28.0) COORDINATES WERE FOUND
         print("Resampling..")
-
         X_resampled = self.nilearn_resample(X)
-
+        mean_img = nilearn.image.mean_img(X_resampled)
         masker = NiftiMasker(smoothing_fwhm=1,
                              standardize=True, memory="nilearn_cache", memory_level=1)
 
         X = masker.fit_transform(X_resampled)
-        mean_img = nilearn.image.mean_img(X_resampled)
         # Model
         print("Training...")
         feature_selection = SelectPercentile(f_classif, percentile=0.5)
@@ -433,13 +439,16 @@ class run_tests:
 
         anova_svc.fit(X, y)
         y_pred = anova_svc.predict(X)
-        # anova_svc.fit(X, y)
+
+
         # Compute the prediction accuracy for the different folds (i.e. session)
         if self.task == "classification":
             scoring = "accuracy"
         else:
             scoring = "neg_mean_absolute_error"
-        # cv_scores = cross_val_score(anova_svc, X, y, cv = 1, scoring=scoring)
+
+        # For cross validation
+        # cv_scores = cross_val_score(anova_svc, X, y, cv = 3, scoring=scoring)
         # print(cv_scores)
 
         # Return the corresponding mean prediction accuracy
@@ -447,9 +456,6 @@ class run_tests:
 
         # print("Score at task: ", score)
         from sklearn.metrics import mean_squared_error
-        # Only half of data
-        # anova_svc.fit(X, y)
-        # y_pred = anova_svc.predict(X)
         if self.task == "classification":
             output, stats = self.binary_classification(y, y_pred)
             print(stats)
@@ -467,15 +473,9 @@ class run_tests:
         # Use the mean image as a background to avoid relying on anatomical data
 
         # Create the figure
-        plot_stat_map(weight_img, mean_img, title='SVM weights')
+        plot_stat_map(weight_img, mean_img, title='SVM weights', cut_coords=()) #-50,-33, 7
 
         show()
-
-        from nilearn import datasets, image
-        niimg = datasets.load_mni152_template()
-        # Find the MNI coordinates of the voxel (50, 50, 50)
-        l = image.coord_transform(70, 21, -20, niimg.affine)
-        print("MAYBE?", l)
 
         return stats
 
@@ -486,27 +486,28 @@ class run_tests:
 
         background_computed = False
 
-        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, shuffle=False)
+        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.4, shuffle=False)
 
         X_test = self.nilearn_resample(X_test)
         X_train = self.nilearn_resample(X_train)
         X_all = np.append(X_train, X_test)
         if not background_computed:
             background_img = nilearn.image.mean_img(X_all)
-            print("background computer")
+            print("background computed")
             background_computed = True
         scores = []
         # Predictions on test set
         if self.task == "classification":
-            decoder = self.new_SpaceNet(self.task, self.penalty)
-            decoder.fit(X_train, y_train)
+            decoder = self.new_SpaceNet()
+            decoder.fit(X_all, y)
             print("decoder fit")
-            y_pred = np.round(decoder.predict(X_test).ravel())
-            accuracy = np.average([1 if y_pred[i] == y_test[i] else 0 for i in range(len(y_pred))])
+            y_pred = np.round(decoder.predict(X_all).ravel())
+            print(y_pred)
+            accuracy = np.average([1 if y_pred[i] == y[i] else 0 for i in range(len(y))])
             print(accuracy)
             scores.append(accuracy)
         else:
-            decoder = self.new_SpaceNet(self.task, self.penalty)
+            decoder = self.new_SpaceNet()
             decoder.fit(X_train, y_train)
             print("decoder fit")
             y_pred = decoder.predict(X_test).ravel()
@@ -521,24 +522,23 @@ class run_tests:
         coef_img = decoder.coef_img_
 
         suptitle = "SCORE: " + str(score)
+        title = self.penalty + " weights"
+        plot_stat_map(coef_img, background_img, title=title)
 
         # Plot
         plt.figure()
         plt.suptitle(suptitle)
         linewidth = 3
         ax1 = plt.subplot('211')
-        ax1.plot(y_test, label="True Cudit Score", linewidth=linewidth)
+        ax1.plot(y, label="True Cudit Score", linewidth=linewidth)
         ax1.plot(y_pred, '--', c="g", label="Predicted Cudit Score", linewidth=linewidth)
         ax1.set_ylabel("Cudit Score")
         plt.legend(loc="best")
         ax2 = plt.subplot("212")
-        ax2.plot(y_test - y_pred, label="True - predicted",
+        ax2.plot(y - y_pred, label="True - predicted",
                  linewidth=linewidth)
         ax2.set_xlabel("subject")
         plt.legend(loc="best")
-
-        title = self.penalty + " weights"
-        plot_stat_map(coef_img, background_img, title=title)
 
         plt.show()
 
@@ -571,13 +571,13 @@ class run_tests:
     """
     Creates a new SpaceNet Decoder
     """
-    def new_SpaceNet(self, type, loss_function):
-        if type == "classification":
-            decoder = SpaceNetClassifier(memory="nilearn_cache", penalty=loss_function,
-                                         screening_percentile=5., memory_level=1)
+    def new_SpaceNet(self):
+        if self.task == "classification":
+            decoder = SpaceNetClassifier(memory="nilearn_cache", penalty=self.penalty,
+                                         screening_percentile=15., memory_level=1)
         else:
-            decoder = SpaceNetRegressor(memory="nilearn_cache", penalty=loss_function,
-                                        screening_percentile=5., memory_level=1)
+            decoder = SpaceNetRegressor(memory="nilearn_cache", penalty=self.penalty,
+                                        screening_percentile=15., memory_level=1)
         return decoder
 
     """
@@ -603,7 +603,7 @@ class run_tests:
             show()
         else:
             # plotting.plot_stat_map('sub-320/ses-FU/anat/sub-320_ses-FU_T1w.nii.gz')
-            plotting.plot_stat_map('sub-/ses-FU/anat/sub-133_ses-FU_T1w.nii.gz')
+            plotting.plot_stat_map('mri_data/sub-/ses-FU/anat/sub-133_ses-FU_T1w.nii.gz')
             show()
 
     """
