@@ -78,7 +78,7 @@ assert SUBSET in ["all","BL", "FU"]
 # FRACTION
 ## Determine what fraction [0,1] of participant data to model (for time constraints, may want to do less)
 ## '1' is all, '0' is none, '0.5' is half
-FRACTION = 0.3
+FRACTION = 1
 
 # LEARNING RATES
 ## 1. 1e-2 #https://www.sciencedirect.com/science/article/pii/S1077314217300620
