@@ -49,6 +49,8 @@ Decoding
 
 ![GitHub Logo](/results/svm_decoding.png)
 
+![GitHub Logo](/results/tv-l1BESTBEST.png)
+
 Contact Information: 
 Aaron: sosaar@stanford.edu
 Vivian: vzhu04@stanford.edu
